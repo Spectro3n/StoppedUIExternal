@@ -641,6 +641,22 @@ end
 --  WATERMARK (conexões rastreadas)
 -- ═══════════════════════════════════════════════════
 function Library:Watermark(enabled, customText)
+    if not self._allConns then self._allConns = NewConnBag() end
+    if not self.Gui then
+        local tp = nil
+        pcall(function()
+            if syn and syn.protect_gui then tp = game:GetService("CoreGui")
+            elseif gethui then tp = gethui()
+            else tp = Players.LocalPlayer:WaitForChild("PlayerGui") end
+        end)
+        if not tp then tp = Players.LocalPlayer:WaitForChild("PlayerGui") end
+        self.Gui = I("ScreenGui", {
+            Name = "__NexUI_WM_" .. math.random(1e4, 9e4), ResetOnSpawn = false,
+            ZIndexBehavior = Enum.ZIndexBehavior.Sibling, DisplayOrder = 1000,
+        }, tp)
+        pcall(function() if syn and syn.protect_gui then syn.protect_gui(self.Gui) end end)
+    end
+
     if not enabled then
         if self._watermark then self._watermark.Visible = false end
         if self._wmConn then self._wmConn:Disconnect(); self._wmConn = nil end
@@ -1145,6 +1161,11 @@ function Library:new_tab(name, icon)
         --  ELEMENT FACTORY
         -- ═════════════════════════════
         function section:element(eType, eName, options, callback, targetContainer)
+            if type(options) == "function" then
+                if not targetContainer then targetContainer = callback end
+                callback = options
+                options = {}
+            end
             options = options or {}
             callback = callback or function() end
             local container = targetContainer or ec
