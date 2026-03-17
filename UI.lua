@@ -1160,14 +1160,23 @@ function Library:new_tab(name, icon)
         -- ═════════════════════════════
         --  ELEMENT FACTORY
         -- ═════════════════════════════
-        function section:element(eType, eName, options, callback, targetContainer)
-            if type(options) == "function" then
-                if not targetContainer then targetContainer = callback end
-                callback = options
-                options = {}
+        function section:element(eType, eName, arg1, arg2, targetContainer_override)
+            local options, callback, targetContainer
+            if type(arg1) == "function" then
+                callback = arg1
+                if type(arg2) == "table" then
+                    options = arg2
+                    targetContainer = targetContainer_override
+                else
+                    options = {}
+                    targetContainer = arg2 or targetContainer_override
+                end
+            else
+                options = type(arg1) == "table" and arg1 or {}
+                callback = type(arg2) == "function" and arg2 or function() end
+                targetContainer = targetContainer_override
             end
-            options = options or {}
-            callback = callback or function() end
+
             local container = targetContainer or ec
             local flag = options.flag or (sectionName .. "_" .. eName)
             local tooltipText = options.tooltip
