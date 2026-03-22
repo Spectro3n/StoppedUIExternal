@@ -632,7 +632,7 @@ function Library.new(title, toggleKey)
 
     -- ══ Global Keybind Handler ══
     win._globalConns:Add(UIS.InputBegan:Connect(function(inp, gpe)
-        if inp.KeyCode == win.ToggleKey and not gpe then
+        if inp.KeyCode == win.ToggleKey then
             win:SetOpen(not win.Open); return
         end
         if gpe or inp.UserInputType ~= Enum.UserInputType.Keyboard then return end
@@ -1485,7 +1485,14 @@ function Library:new_tab(name, icon)
                     CheckDeps(flag)
                 end
                 elem._setValue = SetSlider; elem._getValue = function() return Library.Flags[flag].Slider end
-                task.defer(PosHandle)
+                task.spawn(function()
+                    task.wait()  -- aguarda 1 frame para o layout ser calculado
+                    PosHandle()
+                end)
+
+                track:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+                    if track.AbsoluteSize.X > 0 then PosHandle() end
+                end)
 
                 valLbl.MouseButton1Click:Connect(function()
                     valLbl.Visible = false; editBox.Visible = true
@@ -2778,7 +2785,6 @@ local function AcquireNotifCard(holder, accentColor)
     else
         card = I("Frame", {
             Size = UDim2.new(1, 0, 0, 42),
-            AutomaticSize = Enum.AutomaticSize.Y,
             Position = UDim2.new(1.2, 0, 0, 0),
             BackgroundColor3 = T.Panel, BorderSizePixel = 0,
             BackgroundTransparency = .3, ZIndex = 10, ClipsDescendants = true,
@@ -2852,7 +2858,22 @@ function Library:_showNotification(title, desc, duration, nType, actions)
         AutomaticSize = Enum.AutomaticSize.Y,
         BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 11,
     }, nf)
-    Ls(inner, 3); Pd(10, 10, 10, 10, inner)
+    local innerLay = Ls(inner, 3); Pd(10, 10, 10, 10, inner)
+    local updatingInner = false
+    innerLay:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        if updatingInner then return end
+        updatingInner = true
+        task.defer(function()
+            updatingInner = false
+            pcall(function()
+                if innerLay.Parent then
+                    local h = innerLay.AbsoluteContentSize.Y + 20
+                    nf.Size = UDim2.new(1, 0, 0, h)
+                    wr.Size = UDim2.new(1, 0, 0, h)
+                end
+            end)
+        end)
+    end)
 
     -- Title row
     local titleRow = I("Frame", {
