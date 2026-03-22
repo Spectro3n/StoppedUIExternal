@@ -990,14 +990,24 @@ function Library:new_tab(name, icon)
 
     tab.LeftCol = leftCol; tab.RightCol = rightCol; tab.ColFrame = colFrame
 
+    local updatingCanvas = false
     local function UpdCanvas()
-        if not lLay or not rLay then return end
-        local maxH = math.max(lLay.AbsoluteContentSize.Y, rLay.AbsoluteContentSize.Y, 10)
-        colFrame.Size = UDim2.new(1, -20, 0, maxH)
-        page.CanvasSize = UDim2.new(0, 0, 0, maxH + 30)
+        if updatingCanvas then return end
+        updatingCanvas = true
+        task.defer(function()
+            updatingCanvas = false
+            if not lLay or not rLay or not lLay.Parent or not rLay.Parent then return end
+            pcall(function()
+                local maxH = math.max(lLay.AbsoluteContentSize.Y, rLay.AbsoluteContentSize.Y, 10)
+                if colFrame and page then
+                    colFrame.Size = UDim2.new(1, -20, 0, maxH)
+                    page.CanvasSize = UDim2.new(0, 0, 0, maxH + 30)
+                end
+            end)
+        end)
     end
-    lLay:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(UpdCanvas)
-    rLay:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(UpdCanvas)
+    if lLay then lLay:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(UpdCanvas) end
+    if rLay then rLay:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(UpdCanvas) end
     task.defer(UpdCanvas)
 
     table.insert(win.Tabs, tab)
