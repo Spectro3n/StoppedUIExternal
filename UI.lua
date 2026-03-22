@@ -1091,7 +1091,7 @@ function Library:new_tab(name, icon)
         section.Frame = card
 
         -- ★ Frosted Glass nos cards
-        ApplyFrost(card, 6)
+        -- ApplyFrost(card, 6)
 
         card.BackgroundTransparency = .6
         task.delay(#tab.Sections * .07, function()
