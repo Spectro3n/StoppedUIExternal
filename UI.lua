@@ -2764,6 +2764,7 @@ local function RecycleNotif(card)
         end
     end
     if #Library._notifPool < Library._POOL_MAX then
+        card.Parent = nil
         table.insert(Library._notifPool, card)
     else
         pcall(function() card:Destroy() end)
@@ -3024,46 +3025,6 @@ function Library:_showNotification(title, desc, duration, nType, actions)
         if dLbl and dLbl.Parent then Tw(dLbl, {TextTransparency = .1}, .3) end
     end)
 
-    -- ★ Progress bar com pausa no hover
-    task.delay(.35, function()
-        if not pF or not pF.Parent then return end
-        local totalTime = duration - .5
-        local startTick = tick()
-
-        -- Começa a barra
-        local progressTween = TS:Create(pF,
-            TweenInfo.new(totalTime, Enum.EasingStyle.Linear),
-            {Size = UDim2.new(0, 0, 1, 0)})
-        progressTween:Play()
-
-        -- ★ Loop que checa hover para pausar/resumir
-        task.spawn(function()
-            while not dismissed do
-                task.wait(.05)
-                if not pF or not pF.Parent then break end
-
-                if hovered and not pausedAt then
-                    -- Pausar
-                    pausedAt = tick()
-                    progressTween:Pause()
-                elseif not hovered and pausedAt then
-                    -- Resumir: calcula tempo restante
-                    local elapsed = pausedAt - startTick
-                    local remaining = math.max(totalTime - elapsed, .1)
-                    pausedAt = nil
-                    startTick = tick() - elapsed
-
-                    progressTween:Cancel()
-                    local currentScale = pF.Size.X.Scale
-                    progressTween = TS:Create(pF,
-                        TweenInfo.new(remaining, Enum.EasingStyle.Linear),
-                        {Size = UDim2.new(0, 0, 1, 0)})
-                    progressTween:Play()
-                end
-            end
-        end)
-    end)
-
     -- ★ Dismiss function com reciclagem
     local function Dismiss()
         if dismissed then return end
@@ -3086,18 +3047,49 @@ function Library:_showNotification(title, desc, duration, nType, actions)
         end)
     end
 
-    -- ═══ AUTO-DISMISS (★ respeita hover) ═══
-    task.spawn(function()
-        local waited = 0
-        while waited < duration and not dismissed do
-            task.wait(.1)
-            if not hovered then
-                waited = waited + .1
+    -- ★ Progress bar com pausa no hover
+    task.delay(.35, function()
+        if not pF or not pF.Parent then return end
+        local totalTime = duration - .5
+        local startTick = tick()
+
+        -- Começa a barra
+        local progressTween = TS:Create(pF,
+            TweenInfo.new(totalTime, Enum.EasingStyle.Linear),
+            {Size = UDim2.new(0, 0, 1, 0)})
+        progressTween:Play()
+
+        task.spawn(function()
+            local startTime = tick()
+            local localPauseStart = nil
+            local pausedDuration = 0
+
+            while not dismissed do
+                task.wait(.05)
+                if not nf or not nf.Parent then dismissed = true; break end
+                if not pF or not pF.Parent then break end
+
+                if hovered and not localPauseStart then
+                    localPauseStart = tick()
+                    progressTween:Pause()
+                elseif not hovered and localPauseStart then
+                    pausedDuration = pausedDuration + (tick() - localPauseStart)
+                    local elapsed = localPauseStart - startTime
+                    local remaining = math.max(totalTime - elapsed, .1)
+                    localPauseStart = nil
+
+                    progressTween:Cancel()
+                    progressTween = TS:Create(pF,
+                        TweenInfo.new(remaining, Enum.EasingStyle.Linear),
+                        {Size = UDim2.new(0, 0, 1, 0)})
+                    progressTween:Play()
+                end
+
+                local active = tick() - startTime - pausedDuration
+                if active >= totalTime then break end
             end
-            -- Se o card sumiu por algum motivo externo
-            if not nf or not nf.Parent then dismissed = true; return end
-        end
-        if not dismissed then Dismiss() end
+            if not dismissed then Dismiss() end
+        end)
     end)
 
     -- ★ Click dismiss + hover detection
