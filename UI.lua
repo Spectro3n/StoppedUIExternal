@@ -556,8 +556,18 @@ function Library.new(title, toggleKey)
         CanvasSize = UDim2.new(0, 0, 0, 0), ZIndex = 9,
     }, iconBar)
     local iLay = Ls(iconScroll, 4); Pd(10, 10, 0, 0, iconScroll)
+    local iUpdating = false
     iLay:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        iconScroll.CanvasSize = UDim2.new(0, 0, 0, iLay.AbsoluteContentSize.Y + 20)
+        if iUpdating then return end
+        iUpdating = true
+        task.defer(function()
+            iUpdating = false
+            pcall(function()
+                if iconScroll and iconScroll.Parent then
+                    iconScroll.CanvasSize = UDim2.new(0, 0, 0, iLay.AbsoluteContentSize.Y + 20)
+                end
+            end)
+        end)
     end)
     win.IconScroll = iconScroll
 
@@ -578,8 +588,18 @@ function Library.new(title, toggleKey)
         CanvasSize = UDim2.new(0, 0, 0, 0), ZIndex = 7,
     }, subSide)
     local sLay = Ls(subScroll, 2); Pd(10, 10, 8, 8, subScroll)
+    local sUpdating = false
     sLay:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        subScroll.CanvasSize = UDim2.new(0, 0, 0, sLay.AbsoluteContentSize.Y + 20)
+        if sUpdating then return end
+        sUpdating = true
+        task.defer(function()
+            sUpdating = false
+            pcall(function()
+                if subScroll and subScroll.Parent then
+                    subScroll.CanvasSize = UDim2.new(0, 0, 0, sLay.AbsoluteContentSize.Y + 20)
+                end
+            end)
+        end)
     end)
     win.SubScroll = subScroll
 
