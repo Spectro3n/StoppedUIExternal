@@ -2806,12 +2806,17 @@ local function ProcessNotifQueue()
     if Library._notifProcessing then return end
     Library._notifProcessing = true
     task.spawn(function()
-        while #Library._notifQueue > 0 do
-            local data = table.remove(Library._notifQueue, 1)
-            Library:_showNotification(data.title, data.desc, data.duration, data.nType, data.actions)
-            task.wait(.3)
+        local ok, err = pcall(function()
+            while #Library._notifQueue > 0 do
+                local data = table.remove(Library._notifQueue, 1)
+                Library:_showNotification(data.title, data.desc, data.duration, data.nType, data.actions)
+                task.wait(.3)
+            end
+        end)
+        Library._notifProcessing = false  -- ← agora SEMPRE roda, com ou sem erro
+        if not ok then
+            warn("[NexUI] Notif queue error: " .. tostring(err))
         end
-        Library._notifProcessing = false
     end)
 end
 
