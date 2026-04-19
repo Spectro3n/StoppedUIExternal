@@ -553,7 +553,8 @@ function Library.new(title, toggleKey)
     local islandWrap = I("Frame", {
         Name = "IslandWrap",
         Size = UDim2.new(1, 0, 0, 50),
-        Position = UDim2.new(0, 0, 0, -20),
+        Position = UDim2.new(0, 0, 1, 6),
+        AnchorPoint = Vector2.new(0, 0),
         BackgroundTransparency = 1,
         ZIndex = 30,
     }, main)
@@ -561,7 +562,7 @@ function Library.new(title, toggleKey)
     local dynamicIsland = I("Frame", {
         Name = "DynamicIsland",
         Size = UDim2.new(0, 40, 0, 36), -- Initial size (small pill)
-        Position = UDim2.new(0.5, 0, 0, 4),
+        Position = UDim2.new(0.5, 0, 0, 0),
         AnchorPoint = Vector2.new(0.5, 0),
         BackgroundColor3 = T.Elevated,
         BackgroundTransparency = 0.05,
@@ -614,6 +615,22 @@ function Library.new(title, toggleKey)
         if win.DynamicIsland then
             local targetWidth = math.max(40, islandLayout.AbsoluteContentSize.X + 16)
             Tw(win.DynamicIsland, {Size = UDim2.new(0, targetWidth, 0, 36)}, .2, Enum.EasingStyle.Linear)
+        end
+    end)
+
+    local dDrag, dStart, fStart = false, nil, nil
+    dynamicIsland.InputBegan:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+            dDrag = true; dStart = inp.Position; fStart = main.Position
+            inp.Changed:Connect(function()
+                if inp.UserInputState == Enum.UserInputState.End then dDrag = false end
+            end)
+        end
+    end)
+    UIS.InputChanged:Connect(function(inp)
+        if dDrag and inp.UserInputType == Enum.UserInputType.MouseMovement and dStart then
+            local d = inp.Position - dStart
+            main.Position = UDim2.new(fStart.X.Scale, fStart.X.Offset + d.X, fStart.Y.Scale, fStart.Y.Offset + d.Y)
         end
     end)
 
@@ -1064,11 +1081,7 @@ function Library:new_tab(name, icon)
             Size = UDim2.new(1, 0, 0, 10), Position = UDim2.new(0, 0, 1, -10),
             BackgroundColor3 = T.CardHead, BorderSizePixel = 0, ZIndex = 7,
         }, hd)
-        local hdLine = I("Frame", {
-            Size = UDim2.new(1, 0, 0, 1), Position = UDim2.new(0, 0, 1, -1),
-            BackgroundColor3 = T.Border, BorderSizePixel = 0, ZIndex = 8,
-        }, hd)
-        Reg(hdLine, "BackgroundColor3", "Border")
+
 
         local pill = I("Frame", {
             Size = UDim2.new(0, 3, 0, 12), Position = UDim2.new(0, 8, .5, -6),
@@ -1291,8 +1304,12 @@ function Library:new_tab(name, icon)
                 }, row)
                 Reg(gear, "TextColor3", "TextMut")
 
+                local isLocked = options.locked == true
                 local toggled = defVal
+                if isLocked then toggled = false end
+
                 local function Set(val, silent)
+                    if isLocked then return end -- STRICT LOCK
                     toggled = val
                     Library.Flags[flag].Toggle = val; Library.Flags[flag].Active = val
                     if val then
@@ -1319,6 +1336,20 @@ function Library:new_tab(name, icon)
                 click.MouseButton1Click:Connect(function() Set(not toggled) end)
                 click.MouseEnter:Connect(function() hovering = true; Tw(hov, {BackgroundTransparency = .88}, .12) end)
                 click.MouseLeave:Connect(function() hovering = false; Tw(hov, {BackgroundTransparency = 1}, .12) end)
+                
+                if isLocked then
+                    I("TextLabel", {
+                        Text = "🔒", Size = UDim2.new(0, 18, 0, 18),
+                        Position = UDim2.new(1, -66, 0, descText and 5 or 8),
+                        BackgroundTransparency = 1, TextColor3 = T.TextMut,
+                        TextSize = 12, Font = Enum.Font.Gotham, ZIndex = 13,
+                    }, row)
+                    sw.BackgroundTransparency = 0.5
+                    kn.BackgroundTransparency = 0.5
+                    lbl.TextColor3 = T.TextDis
+                    Reg(lbl, "TextColor3", "TextDis")
+                end
+
                 gear.MouseButton1Click:Connect(function() win:_openKeybindPopup(elem, gear) end)
 
                 elem._gear = gear; elem._row = row
