@@ -417,7 +417,7 @@ function Library.new(title, toggleKey)
         Name = "W", Size = UDim2.new(0, W * .85, 0, H * .85),
         Position = UDim2.new(.5, 0, .5, 0), AnchorPoint = Vector2.new(.5, .5),
         BackgroundColor3 = T.BG, BorderSizePixel = 0,
-        ClipsDescendants = true, BackgroundTransparency = .4,
+        ClipsDescendants = false, BackgroundTransparency = .4,
     }, gui)
     Cn(12, main); Shadow(main, 2); Reg(main, "BackgroundColor3", "BG")
     win.Main = main; win._fullSize = UDim2.new(0, W, 0, H)
@@ -1077,10 +1077,11 @@ function Library:new_tab(name, icon)
             BorderSizePixel = 0, ZIndex = 7, LayoutOrder = 1,
         }, card)
         Cn(10, hd); Reg(hd, "BackgroundColor3", "CardHead")
-        I("Frame", {
+        local sqFrame = I("Frame", {
             Size = UDim2.new(1, 0, 0, 10), Position = UDim2.new(0, 0, 1, -10),
             BackgroundColor3 = T.CardHead, BorderSizePixel = 0, ZIndex = 7,
         }, hd)
+        Reg(sqFrame, "BackgroundColor3", "CardHead")
 
 
         local pill = I("Frame", {
