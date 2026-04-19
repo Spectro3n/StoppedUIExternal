@@ -136,6 +136,27 @@ local function Reg(o, p, k)
     return o
 end
 
+local function RegUpdate(o, p, k)
+    if not o then return end
+    for _, t in ipairs(Library._themed) do
+        if t[1] == o and t[2] == p then
+            t[3] = k
+            pcall(function() o[p] = T[k] end)
+            return
+        end
+    end
+    Reg(o, p, k)
+end
+
+local function UnReg(o, p)
+    for i = #Library._themed, 1, -1 do
+        local t = Library._themed[i]
+        if t[1] == o and t[2] == p then
+            table.remove(Library._themed, i)
+        end
+    end
+end
+
 -- ═══════════════════════════════════════════════════
 --  UTILITIES
 -- ═══════════════════════════════════════════════════
@@ -363,6 +384,7 @@ function Library.new(title, toggleKey)
         ResetOnSpawn = false,
         ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
         DisplayOrder = 1000,
+        IgnoreGuiInset = true,
     })
     pcall(function()
         if syn and syn.protect_gui then syn.protect_gui(gui); gui.Parent = game.CoreGui
@@ -521,17 +543,22 @@ function Library.new(title, toggleKey)
         local dragging, dragInput, mStart, fStart = false, nil, nil, nil
         local targetPos = main.Position
 
-        win._allConns:Add(topbar.InputBegan:Connect(function(inp)
-            if inp.UserInputType == Enum.UserInputType.MouseButton1 then
-                dragging = true; mStart = inp.Position; fStart = main.Position; targetPos = fStart
-                inp.Changed:Connect(function()
-                    if inp.UserInputState == Enum.UserInputState.End then dragging = false end
-                end)
-            end
-        end))
-        win._allConns:Add(topbar.InputChanged:Connect(function(inp)
-            if inp.UserInputType == Enum.UserInputType.MouseMovement then dragInput = inp end
-        end))
+        function win:_attachDrag(guiElement)
+            win._allConns:Add(guiElement.InputBegan:Connect(function(inp)
+                if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+                    dragging = true; mStart = inp.Position; fStart = main.Position; targetPos = fStart
+                    inp.Changed:Connect(function()
+                        if inp.UserInputState == Enum.UserInputState.End then dragging = false end
+                    end)
+                end
+            end))
+            win._allConns:Add(guiElement.InputChanged:Connect(function(inp)
+                if inp.UserInputType == Enum.UserInputType.MouseMovement then dragInput = inp end
+            end))
+        end
+
+        win:_attachDrag(topbar)
+
         win._allConns:Add(UIS.InputChanged:Connect(function(inp)
             if inp == dragInput and dragging and mStart then
                 local d = inp.Position - mStart
@@ -618,21 +645,7 @@ function Library.new(title, toggleKey)
         end
     end)
 
-    local dDrag, dStart, fStart = false, nil, nil
-    dynamicIsland.InputBegan:Connect(function(inp)
-        if inp.UserInputType == Enum.UserInputType.MouseButton1 then
-            dDrag = true; dStart = inp.Position; fStart = main.Position
-            inp.Changed:Connect(function()
-                if inp.UserInputState == Enum.UserInputState.End then dDrag = false end
-            end)
-        end
-    end)
-    UIS.InputChanged:Connect(function(inp)
-        if dDrag and inp.UserInputType == Enum.UserInputType.MouseMovement and dStart then
-            local d = inp.Position - dStart
-            main.Position = UDim2.new(fStart.X.Scale, fStart.X.Offset + d.X, fStart.Y.Scale, fStart.Y.Offset + d.Y)
-        end
-    end)
+    win:_attachDrag(dynamicIsland)
 
     islandWrap.MouseEnter:Connect(function() win.IslandHovered = true; UpdateIslandState() end)
     islandWrap.MouseLeave:Connect(function() win.IslandHovered = false; UpdateIslandState() end)
@@ -987,6 +1000,7 @@ function Library:new_tab(name, icon)
         end
     end)
     dockBtn.MouseButton1Click:Connect(function() win:SelectTab(tab) end)
+    win:_attachDrag(dockBtn)
 
 
 
@@ -1100,10 +1114,11 @@ function Library:new_tab(name, icon)
 
         -- Collapse
         local collapseArrow = I("TextLabel", {
-            Text = "▾", Size = UDim2.new(0, 18, 0, 18),
+            Text = ">", Size = UDim2.new(0, 18, 0, 18),
             Position = UDim2.new(1, -24, .5, -9),
             BackgroundTransparency = 1, TextColor3 = T.TextMut,
-            TextSize = 11, Font = Enum.Font.GothamBold, ZIndex = 9,
+            TextSize = 13, Font = Enum.Font.GothamBold, ZIndex = 9,
+            Rotation = 90
         }, hd)
         Reg(collapseArrow, "TextColor3", "TextMut")
 
@@ -1126,13 +1141,13 @@ function Library:new_tab(name, icon)
         collapseBtn.MouseButton1Click:Connect(function()
             collapsed = not collapsed
             ec.Visible = not collapsed
-            Tw(collapseArrow, {Rotation = collapsed and -90 or 0}, .2, Enum.EasingStyle.Back)
+            Tw(collapseArrow, {Rotation = collapsed and 0 or 90}, .2, Enum.EasingStyle.Back)
             Tw(pill, {BackgroundColor3 = collapsed and T.TextMut or T.Accent}, .2)
         end)
 
         function section:set_collapsed(state)
             collapsed = state; ec.Visible = not state
-            collapseArrow.Rotation = state and -90 or 0
+            collapseArrow.Rotation = state and 0 or 90
             pill.BackgroundColor3 = state and T.TextMut or T.Accent
         end
 
@@ -1314,10 +1329,14 @@ function Library:new_tab(name, icon)
                     toggled = val
                     Library.Flags[flag].Toggle = val; Library.Flags[flag].Active = val
                     if val then
+                        RegUpdate(sw, "BackgroundColor3", "Accent")
+                        UnReg(kn, "BackgroundColor3")
                         Tw(sw, {BackgroundColor3 = T.Accent, BackgroundTransparency = 0}, .22)
                         Tw(kn, {Position = UDim2.new(0, 20, .5, -5), BackgroundColor3 = Color3.new(1,1,1), BackgroundTransparency = 0}, .22, Enum.EasingStyle.Back)
                         Tw(gl, {BackgroundTransparency = .78}, .35)
                     else
+                        RegUpdate(sw, "BackgroundColor3", "ToggleBg")
+                        RegUpdate(kn, "BackgroundColor3", "ToggleKnob")
                         Tw(sw, {BackgroundColor3 = T.ToggleBg, BackgroundTransparency = 0}, .22)
                         Tw(kn, {Position = UDim2.new(0, 3, .5, -5), BackgroundColor3 = T.ToggleKnob, BackgroundTransparency = 0}, .22, Enum.EasingStyle.Back)
                         Tw(gl, {BackgroundTransparency = 1}, .22)
@@ -2393,10 +2412,11 @@ function Library:_openColorPicker(elem, anchor, currentColor, onColorChange)
     task.defer(function()
         if not anchor or not anchor.Parent then return end
         local ap, as = anchor.AbsolutePosition, anchor.AbsoluteSize
-        local popX = ap.X - 240 - 10
-        if popX < 10 then popX = ap.X + as.X + 10 end
+        local ovPos = self.Overlay and self.Overlay.AbsolutePosition or Vector2.new(0,0)
+        local popX = ap.X - ovPos.X - 240 - 10
+        if popX < 10 then popX = ap.X - ovPos.X + as.X + 10 end
         local scrY = self.Gui and self.Gui:FindFirstChild("Main") and self.Gui.Main.AbsoluteSize.Y or 500
-        pop.Position = UDim2.new(0, popX, 0, math.clamp(ap.Y - (285/2) + (as.Y/2), 10, scrY - 290))
+        pop.Position = UDim2.new(0, popX, 0, math.clamp(ap.Y - ovPos.Y - (285/2) + (as.Y/2), 10, scrY - 290))
         Tw(pop, {BackgroundTransparency = 0}, .22, Enum.EasingStyle.Back)
     end)
 
