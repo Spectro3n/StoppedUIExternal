@@ -44,16 +44,16 @@ Library.Themes = {
         SliderTrack=Color3.fromRGB(20,20,28),SliderFill=Color3.fromRGB(45,125,255),SliderKnob=Color3.fromRGB(210,220,255),
     },
     Midnight = {
-        BG=Color3.fromRGB(10,8,18),IconBar=Color3.fromRGB(12,10,22),Panel=Color3.fromRGB(16,13,28),
-        Elevated=Color3.fromRGB(24,20,40),Hover=Color3.fromRGB(32,28,52),Active=Color3.fromRGB(40,35,60),
-        Card=Color3.fromRGB(18,15,30),CardHead=Color3.fromRGB(22,18,36),
-        Accent=Color3.fromRGB(130,80,255),AccentDim=Color3.fromRGB(70,40,150),AccentGlow=Color3.fromRGB(100,60,220),
-        Text=Color3.fromRGB(230,225,245),TextSub=Color3.fromRGB(140,130,165),
-        TextMut=Color3.fromRGB(75,65,100),TextDis=Color3.fromRGB(50,42,70),
-        Border=Color3.fromRGB(30,25,45),BorderLight=Color3.fromRGB(45,38,65),
+        BG=Color3.fromRGB(10,12,18),IconBar=Color3.fromRGB(12,14,22),Panel=Color3.fromRGB(16,18,28),
+        Elevated=Color3.fromRGB(24,26,40),Hover=Color3.fromRGB(32,34,52),Active=Color3.fromRGB(40,42,60),
+        Card=Color3.fromRGB(18,20,30),CardHead=Color3.fromRGB(22,24,36),
+        Accent=Color3.fromRGB(80,140,255),AccentDim=Color3.fromRGB(40,90,150),AccentGlow=Color3.fromRGB(60,110,220),
+        Text=Color3.fromRGB(230,235,245),TextSub=Color3.fromRGB(140,150,165),
+        TextMut=Color3.fromRGB(75,85,100),TextDis=Color3.fromRGB(50,60,70),
+        Border=Color3.fromRGB(30,35,45),BorderLight=Color3.fromRGB(45,52,65),
         Success=Color3.fromRGB(45,215,115),Warning=Color3.fromRGB(255,185,35),Danger=Color3.fromRGB(225,55,55),
-        ToggleBg=Color3.fromRGB(24,20,36),ToggleKnob=Color3.fromRGB(90,80,115),
-        SliderTrack=Color3.fromRGB(22,18,34),SliderFill=Color3.fromRGB(130,80,255),SliderKnob=Color3.fromRGB(215,200,255),
+        ToggleBg=Color3.fromRGB(24,26,36),ToggleKnob=Color3.fromRGB(90,100,115),
+        SliderTrack=Color3.fromRGB(22,24,34),SliderFill=Color3.fromRGB(80,140,255),SliderKnob=Color3.fromRGB(200,220,255),
     },
     Ocean = {
         BG=Color3.fromRGB(6,12,14),IconBar=Color3.fromRGB(8,14,18),Panel=Color3.fromRGB(10,18,24),
@@ -492,6 +492,7 @@ function Library.new(title, toggleKey)
         Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1,
         ZIndex = 13, ScaleType = Enum.ScaleType.Crop,
     }, avatar)
+    Cn(15, avatarImg)
     task.spawn(function()
         local ok, thumb = pcall(function()
             return Players:GetUserThumbnailAsync(LP.UserId,
@@ -547,43 +548,77 @@ function Library.new(title, toggleKey)
         end))
     end
 
-    -- ══ Floating Dock (replaces sidebars) ══
-    local dockOuter = I("Frame", {
-        Name = "Dock",
-        Size = UDim2.new(0, 0, 0, 44),
-        AutomaticSize = Enum.AutomaticSize.X,
-        Position = UDim2.new(0.5, 0, 1, -6),
-        AnchorPoint = Vector2.new(0.5, 1),
-        BackgroundColor3 = T.Panel,
-        BackgroundTransparency = 0.08,
-        BorderSizePixel = 0, ZIndex = 20, ClipsDescendants = false,
+    -- ══ Dynamic Island (replaces sidebars & bottom dock) ══
+    local islandWrap = I("Frame", {
+        Name = "IslandWrap",
+        Size = UDim2.new(1, 0, 0, 50),
+        Position = UDim2.new(0, 0, 0, -20),
+        BackgroundTransparency = 1,
+        ZIndex = 30,
     }, main)
-    Cn(12, dockOuter); Shadow(dockOuter, 20)
-    Reg(dockOuter, "BackgroundColor3", "Panel")
-    local dockStroke = St(T.BorderLight, 1, dockOuter)
-    Reg(dockStroke, "Color", "BorderLight")
-    ApplyFrost(dockOuter, 20)
 
-    local dockList = I("Frame", {
-        Name = "DockList",
+    local dynamicIsland = I("Frame", {
+        Name = "DynamicIsland",
+        Size = UDim2.new(0, 40, 0, 36), -- Initial size (small pill)
+        Position = UDim2.new(0.5, 0, 0, 16),
+        AnchorPoint = Vector2.new(0.5, 0),
+        BackgroundColor3 = T.Elevated,
+        BackgroundTransparency = 0.05,
+        BorderSizePixel = 0, ZIndex = 31, ClipsDescendants = true,
+    }, islandWrap)
+    Cn(18, dynamicIsland); Shadow(dynamicIsland, 25)
+    Reg(dynamicIsland, "BackgroundColor3", "Elevated")
+    local islandStroke = St(T.BorderLight, 1, dynamicIsland)
+    Reg(islandStroke, "Color", "BorderLight")
+
+    local islandList = I("Frame", {
+        Name = "IslandList",
         Size = UDim2.new(0, 0, 1, 0),
+        Position = UDim2.new(0.5, 0, 0, 0),
+        AnchorPoint = Vector2.new(0.5, 0),
         AutomaticSize = Enum.AutomaticSize.X,
-        BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 21,
-    }, dockOuter)
-    I("UIListLayout", {
+        BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 32,
+    }, dynamicIsland)
+    local islandLayout = I("UIListLayout", {
         FillDirection = Enum.FillDirection.Horizontal,
         SortOrder = Enum.SortOrder.LayoutOrder,
-        Padding = UDim.new(0, 6),
+        Padding = UDim.new(0, 4),
         VerticalAlignment = Enum.VerticalAlignment.Center,
-    }, dockList)
-    Pd(0, 0, 10, 10, dockList)
-    win.DockList = dockList
+        HorizontalAlignment = Enum.HorizontalAlignment.Center,
+    }, islandList)
+    Pd(0, 0, 6, 6, islandList)
+    win.IslandList = islandList
+    win.DynamicIsland = dynamicIsland
+    win.IslandHovered = false
 
-    -- Dock entry animation
-    dockOuter.BackgroundTransparency = 1
-    task.delay(.3, function()
-        Tw(dockOuter, {BackgroundTransparency = 0.08}, .5)
+    local function UpdateIslandState()
+        if not win.DynamicIsland then return end
+        local expanded = win.IslandHovered
+        for _, t in ipairs(win.Tabs) do
+            if t.Active then
+                Tw(t.DockBtn, {Size = UDim2.new(0, expanded and 44 or 40, 0, expanded and 36 or 36)}, .4, Enum.EasingStyle.Exponential)
+                if t.IconLabel then Tw(t.IconLabel, {TextTransparency = 0}, .2) end
+                if t.IconImage then Tw(t.IconImage, {ImageTransparency = 0}, .2) end
+            else
+                Tw(t.DockBtn, {Size = UDim2.new(0, expanded and 36 or 0, 0, 36)}, .4, Enum.EasingStyle.Exponential)
+                if t.IconLabel then Tw(t.IconLabel, {TextTransparency = expanded and 0.4 or 1}, .3) end
+                if t.IconImage then Tw(t.IconImage, {ImageTransparency = expanded and 0.4 or 1}, .3) end
+            end
+        end
+        local targetWidth = math.max(40, islandLayout.AbsoluteContentSize.X + 16)
+        Tw(win.DynamicIsland, {Size = UDim2.new(0, targetWidth, 0, 36)}, .4, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out)
+    end
+
+    islandLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        if win.DynamicIsland then
+            local targetWidth = math.max(40, islandLayout.AbsoluteContentSize.X + 16)
+            Tw(win.DynamicIsland, {Size = UDim2.new(0, targetWidth, 0, 36)}, .2, Enum.EasingStyle.Linear)
+        end
     end)
+
+    islandWrap.MouseEnter:Connect(function() win.IslandHovered = true; UpdateIslandState() end)
+    islandWrap.MouseLeave:Connect(function() win.IslandHovered = false; UpdateIslandState() end)
+    win.UpdateIslandState = UpdateIslandState
 
     -- ══ Content ══
     local content = I("Frame", {
@@ -873,46 +908,44 @@ function Library:new_tab(name, icon)
     local tab = {Name = name, Icon = icon, Sections = {}, Active = false}
     local GAP = 10
 
-    -- Dock button
+    -- Dynamic Island Pill
     local isImageIcon = type(icon) == "string" and (tonumber(icon) ~= nil or string.find(icon, "rbxassetid://", 1, true))
 
     local dockBtn = I("TextButton", {
         Name = name, Text = "",
-        Size = UDim2.new(0, 36, 0, 36),
-        BackgroundColor3 = T.Elevated,
-        BackgroundTransparency = 0.4,
-        BorderSizePixel = 0, AutoButtonColor = false, ZIndex = 22,
-    }, win.DockList)
-    Cn(10, dockBtn)
-    Reg(dockBtn, "BackgroundColor3", "Elevated")
+        Size = UDim2.new(0, 0, 0, 36), -- Initial size 0 (hidden) until active or hovered
+        BackgroundColor3 = T.Hover,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0, AutoButtonColor = false, ZIndex = 32,
+        ClipsDescendants = true,
+    }, win.IslandList)
+    Cn(12, dockBtn)
+    Reg(dockBtn, "BackgroundColor3", "Hover")
     tab.DockBtn = dockBtn
 
-    -- Glow behind active icon
     local dockGlow = I("Frame", {
-        Size = UDim2.new(1, 8, 1, 8),
+        Size = UDim2.new(1, 4, 1, 4),
         Position = UDim2.new(0.5, 0, 0.5, 0),
         AnchorPoint = Vector2.new(0.5, 0.5),
         BackgroundColor3 = T.AccentGlow,
         BackgroundTransparency = 1,
-        BorderSizePixel = 0, ZIndex = 21,
+        BorderSizePixel = 0, ZIndex = 31,
     }, dockBtn)
-    Cn(12, dockGlow)
+    Cn(14, dockGlow)
     Reg(dockGlow, "BackgroundColor3", "AccentGlow")
     tab.DockGlow = dockGlow
 
-    -- Active dot below
     local dockDot = I("Frame", {
         Size = UDim2.new(0, 0, 0, 3),
-        Position = UDim2.new(0.5, 0, 1, 3),
-        AnchorPoint = Vector2.new(0.5, 0),
+        Position = UDim2.new(0.5, 0, 1, -2),
+        AnchorPoint = Vector2.new(0.5, 1),
         BackgroundColor3 = T.Accent,
-        BorderSizePixel = 0, ZIndex = 23,
+        BorderSizePixel = 0, ZIndex = 33,
     }, dockBtn)
     Cn(2, dockDot)
     Reg(dockDot, "BackgroundColor3", "Accent")
     tab.DockDot = dockDot
 
-    -- Icon content (text or image)
     local iconLbl, iconImg
     if isImageIcon then
         local imgId = tonumber(icon) and ("rbxassetid://" .. icon) or icon
@@ -921,47 +954,26 @@ function Library:new_tab(name, icon)
             Size = UDim2.new(0, 18, 0, 18),
             Position = UDim2.new(0.5, 0, 0.5, 0),
             AnchorPoint = Vector2.new(0.5, 0.5),
-            BackgroundTransparency = 1,
-            ImageColor3 = T.TextMut,
-            ZIndex = 23,
+            BackgroundTransparency = 1, ImageTransparency = 1,
+            ImageColor3 = T.Text,
+            ZIndex = 33,
         }, dockBtn)
-        Reg(iconImg, "ImageColor3", "TextMut")
+        Reg(iconImg, "ImageColor3", "Text")
         tab.IconImage = iconImg
     else
         iconLbl = I("TextLabel", {
             Text = icon, Size = UDim2.new(1, 0, 1, 0),
-            BackgroundTransparency = 1, TextColor3 = T.TextMut,
-            TextSize = 14, Font = Enum.Font.GothamBold, ZIndex = 23,
+            BackgroundTransparency = 1, TextColor3 = T.Text, TextTransparency = 1,
+            TextSize = 14, Font = Enum.Font.GothamBold, ZIndex = 33,
         }, dockBtn)
-        Reg(iconLbl, "TextColor3", "TextMut")
+        Reg(iconLbl, "TextColor3", "Text")
         tab.IconLabel = iconLbl
     end
 
-    -- Badge
-    local badge = I("TextLabel", {
-        Text = "", Size = UDim2.new(0, 0, 0, 14), AutomaticSize = Enum.AutomaticSize.X,
-        Position = UDim2.new(1, -2, 0, -2), AnchorPoint = Vector2.new(1, 0),
-        BackgroundColor3 = T.Danger, TextColor3 = Color3.new(1, 1, 1),
-        TextSize = 8, Font = Enum.Font.GothamBold,
-        BorderSizePixel = 0, Visible = false, ZIndex = 25,
-    }, dockBtn)
-    Cn(7, badge); Pd(0, 0, 4, 4, badge)
-    Reg(badge, "BackgroundColor3", "Danger")
-    tab._badge = badge
-
-    function tab:set_badge(text)
-        if not text or text == "" then badge.Visible = false
-        else badge.Text = tostring(text); badge.Visible = true
-            Tw(badge, {Size = UDim2.new(0, 0, 0, 16)}, .08)
-            task.delay(.08, function() Tw(badge, {Size = UDim2.new(0, 0, 0, 14)}, .08) end)
-        end
-    end
-
-    -- Tooltip (appears above dock button)
     local tt = I("TextLabel", {
         Text = " " .. name .. " ", Size = UDim2.new(0, 0, 0, 22),
         AutomaticSize = Enum.AutomaticSize.X,
-        Position = UDim2.new(0.5, 0, 0, -28),
+        Position = UDim2.new(0.5, 0, 1, 10),
         AnchorPoint = Vector2.new(0.5, 0),
         BackgroundColor3 = T.Elevated, TextColor3 = T.Text,
         TextSize = 10, Font = Enum.Font.Gotham, BorderSizePixel = 0,
@@ -970,24 +982,20 @@ function Library:new_tab(name, icon)
     Cn(5, tt); St(T.BorderLight, 1, tt)
     Reg(tt, "BackgroundColor3", "Elevated"); Reg(tt, "TextColor3", "Text")
 
-    -- Hover: scale up icon
     dockBtn.MouseEnter:Connect(function()
         tt.Visible = true
         if not tab.Active then
-            Tw(dockBtn, {BackgroundTransparency = 0.15, Size = UDim2.new(0, 40, 0, 40)}, .15, Enum.EasingStyle.Back)
-            if iconLbl then Tw(iconLbl, {TextColor3 = T.TextSub}, .12) end
-            if iconImg then Tw(iconImg, {ImageColor3 = T.TextSub}, .12) end
+            Tw(dockBtn, {BackgroundTransparency = 0.5}, .15)
         end
     end)
     dockBtn.MouseLeave:Connect(function()
         tt.Visible = false
         if not tab.Active then
-            Tw(dockBtn, {BackgroundTransparency = 0.4, Size = UDim2.new(0, 36, 0, 36)}, .15, Enum.EasingStyle.Back)
-            if iconLbl then Tw(iconLbl, {TextColor3 = T.TextMut}, .12) end
-            if iconImg then Tw(iconImg, {ImageColor3 = T.TextMut}, .12) end
+            Tw(dockBtn, {BackgroundTransparency = 1}, .15)
         end
     end)
     dockBtn.MouseButton1Click:Connect(function() win:SelectTab(tab) end)
+
 
 
     -- Page
@@ -1955,21 +1963,17 @@ function Library:SelectTab(target)
 
     for _, t in ipairs(self.Tabs) do
         t.Active = false
-        -- Reset dock button
-        Tw(t.DockBtn, {BackgroundTransparency = 0.4, Size = UDim2.new(0, 36, 0, 36)}, .18)
-        if t.IconLabel then Tw(t.IconLabel, {TextColor3 = T.TextMut}, .18) end
-        if t.IconImage then Tw(t.IconImage, {ImageColor3 = T.TextMut}, .18) end
+        Tw(t.DockBtn, {BackgroundTransparency = 1}, .18)
         Tw(t.DockGlow, {BackgroundTransparency = 1}, .18)
         Tw(t.DockDot, {Size = UDim2.new(0, 0, 0, 3)}, .18)
     end
 
     target.Active = true
-    -- Highlight active dock button
-    Tw(target.DockBtn, {BackgroundTransparency = 0, Size = UDim2.new(0, 40, 0, 40)}, .22, Enum.EasingStyle.Back)
-    if target.IconLabel then Tw(target.IconLabel, {TextColor3 = T.Accent}, .22) end
-    if target.IconImage then Tw(target.IconImage, {ImageColor3 = T.Accent}, .22) end
-    Tw(target.DockGlow, {BackgroundTransparency = 0.82}, .3)
+    Tw(target.DockBtn, {BackgroundTransparency = 0.7}, .22, Enum.EasingStyle.Back)
+    Tw(target.DockGlow, {BackgroundTransparency = 0.8}, .3)
     Tw(target.DockDot, {Size = UDim2.new(0, 14, 0, 3)}, .28, Enum.EasingStyle.Back)
+
+    if self.UpdateIslandState then self.UpdateIslandState() end
 
     task.delay(.12, function()
         target.Page.Visible = true
@@ -2689,14 +2693,6 @@ function Library:SetFlag(flag, key, value)
     CheckDeps(flag)
 end
 
--- ═══════════════════════════════════════════════════
---  NOTIFICATION SYSTEM (★ Rewritten)
---  • Fixed AutomaticSize bug (explicit min sizes)
---  • Interactive actions (buttons)
---  • Hover pauses dismiss timer
---  • Object pooling
---  • Fixed positioning
--- ═══════════════════════════════════════════════════
 Library._notifHolder = nil
 Library._notifQueue = {}
 Library._notifProcessing = false
