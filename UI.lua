@@ -319,9 +319,10 @@ end
 local function ApplyFrost(parent, zBase)
     local ov = I("Frame", {
         Name = "_frost", Size = UDim2.new(1, 0, 1, 0),
-        BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = .97,
+        BackgroundColor3 = T.BG, BackgroundTransparency = .80,
         BorderSizePixel = 0, ZIndex = (zBase or 1) + 1,
     }, parent)
+    Reg(ov, "BackgroundColor3", "BG")
     Cn(12, ov)
     I("UIGradient", {
         Transparency = NumberSequence.new{
@@ -560,7 +561,7 @@ function Library.new(title, toggleKey)
     local dynamicIsland = I("Frame", {
         Name = "DynamicIsland",
         Size = UDim2.new(0, 40, 0, 36), -- Initial size (small pill)
-        Position = UDim2.new(0.5, 0, 0, 16),
+        Position = UDim2.new(0.5, 0, 0, 4),
         AnchorPoint = Vector2.new(0.5, 0),
         BackgroundColor3 = T.Elevated,
         BackgroundTransparency = 0.05,
@@ -708,58 +709,7 @@ end
 --  WATERMARK (★ Heartbeat)
 -- ═══════════════════════════════════════════════════
 function Library:Watermark(enabled, customText)
-    if not self._allConns then self._allConns = NewConnBag() end
-    if not self.Gui then
-        local tp = nil
-        pcall(function()
-            if syn and syn.protect_gui then tp = game:GetService("CoreGui")
-            elseif gethui then tp = gethui()
-            else tp = Players.LocalPlayer:WaitForChild("PlayerGui") end
-        end)
-        if not tp then tp = Players.LocalPlayer:WaitForChild("PlayerGui") end
-        self.Gui = I("ScreenGui", {
-            Name = "__NexUI_WM_" .. math.random(1e4, 9e4), ResetOnSpawn = false,
-            ZIndexBehavior = Enum.ZIndexBehavior.Sibling, DisplayOrder = 1000,
-        }, tp)
-        pcall(function() if syn and syn.protect_gui then syn.protect_gui(self.Gui) end end)
-    end
-
-    if not enabled then
-        if self._watermark then self._watermark.Visible = false end
-        if self._wmConn then self._wmConn:Disconnect(); self._wmConn = nil end
-        return
-    end
-    if not self._watermark then
-        local wm = I("Frame", {
-            Size = UDim2.new(0, 0, 0, 24), AutomaticSize = Enum.AutomaticSize.X,
-            Position = UDim2.new(.5, 0, 0, 8), AnchorPoint = Vector2.new(.5, 0),
-            BackgroundColor3 = T.Panel, BorderSizePixel = 0, ZIndex = 100, BackgroundTransparency = .15,
-        }, self.Gui)
-        Cn(6, wm); St(T.Border, 1, wm); Pd(0, 0, 10, 10, wm)
-        Reg(wm, "BackgroundColor3", "Panel")
-
-        local wmLbl = I("TextLabel", {
-            Text = "", Size = UDim2.new(0, 0, 1, 0), AutomaticSize = Enum.AutomaticSize.X,
-            BackgroundTransparency = 1, TextColor3 = T.TextSub, TextSize = 10,
-            Font = Enum.Font.Gotham, ZIndex = 101,
-        }, wm)
-        Reg(wmLbl, "TextColor3", "TextSub")
-        self._watermark = wm; self._wmLabel = wmLbl
-
-        local label = customText or self.Title
-        -- ★ Heartbeat em vez de RenderStepped
-        self._wmConn = RS.Heartbeat:Connect(function()
-            if not wm or not wm.Parent or not wm.Visible then return end
-            local fps = math.floor(1 / math.max(RS.RenderStepped:Wait(), 0.001))
-            local ping = 0
-            pcall(function()
-                ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
-            end)
-            wmLbl.Text = label .. "  |  " .. fps .. " FPS  |  " .. ping .. "ms"
-        end)
-        self._allConns:Add(self._wmConn)
-    end
-    self._watermark.Visible = true
+    -- Watermark feature removed as requested.
 end
 
 -- ═══════════════════════════════════════════════════
@@ -778,14 +728,39 @@ function Library:KeybindList(enabled)
         Cn(8, kbl); St(T.Border, 1, kbl); Pd(6, 6, 8, 8, kbl)
         Reg(kbl, "BackgroundColor3", "Panel")
 
-        I("TextLabel", {
+        local kbTitle = I("TextLabel", {
             Text = "KEYBINDS", Size = UDim2.new(1, 0, 0, 18),
             BackgroundTransparency = 1, TextColor3 = T.TextSub, TextSize = 9,
             Font = Enum.Font.GothamBold, TextXAlignment = Enum.TextXAlignment.Left,
-            ZIndex = 91, LayoutOrder = 0,
+            ZIndex = 91, LayoutOrder = 0, Active = true,
         }, kbl)
         Ls(kbl, 3)
         self._kbList = kbl; self._kbItems = {}
+
+        -- Make Draggable
+        local dragInput, dragStart, startPos
+        kbTitle.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragStart = input.Position
+                startPos = kbl.Position
+                input.Changed:Connect(function()
+                    if input.UserInputState == Enum.UserInputState.End then
+                        dragStart = nil
+                    end
+                end)
+            end
+        end)
+        kbTitle.InputChanged:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseMovement then
+                dragInput = input
+            end
+        end)
+        game:GetService("UserInputService").InputChanged:Connect(function(input)
+            if input == dragInput and dragStart then
+                local delta = input.Position - dragStart
+                kbl.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+            end
+        end)
 
         task.spawn(function()
             while kbl and kbl.Parent do
@@ -1090,7 +1065,7 @@ function Library:new_tab(name, icon)
             BackgroundColor3 = T.CardHead, BorderSizePixel = 0, ZIndex = 7,
         }, hd)
         local hdLine = I("Frame", {
-            Size = UDim2.new(1, -18, 0, 1), Position = UDim2.new(0, 9, 1, -1),
+            Size = UDim2.new(1, 0, 0, 1), Position = UDim2.new(0, 0, 1, -1),
             BackgroundColor3 = T.Border, BorderSizePixel = 0, ZIndex = 8,
         }, hd)
         Reg(hdLine, "BackgroundColor3", "Border")
@@ -1293,7 +1268,7 @@ function Library:new_tab(name, icon)
                     Size = UDim2.new(0, 34, 0, 17), Position = UDim2.new(1, -42, 0, descText and 5 or 8),
                     BackgroundColor3 = T.ToggleBg, BorderSizePixel = 0, ZIndex = 9,
                 }, row)
-                Cn(9, sw); St(T.BorderLight, 1, sw); Reg(sw, "BackgroundColor3", "ToggleBg")
+                Cn(9, sw); St(T.BorderLight, 1, sw)
 
                 local gl = I("Frame", {
                     Size = UDim2.new(0, 42, 0, 25), Position = UDim2.new(1, -46, 0, descText and 1 or 4),
@@ -1321,12 +1296,12 @@ function Library:new_tab(name, icon)
                     toggled = val
                     Library.Flags[flag].Toggle = val; Library.Flags[flag].Active = val
                     if val then
-                        Tw(sw, {BackgroundColor3 = T.Accent}, .22)
-                        Tw(kn, {Position = UDim2.new(0, 20, .5, -5), BackgroundColor3 = Color3.new(1,1,1)}, .22, Enum.EasingStyle.Back)
+                        Tw(sw, {BackgroundColor3 = T.Accent, BackgroundTransparency = 0}, .22)
+                        Tw(kn, {Position = UDim2.new(0, 20, .5, -5), BackgroundColor3 = Color3.new(1,1,1), BackgroundTransparency = 0}, .22, Enum.EasingStyle.Back)
                         Tw(gl, {BackgroundTransparency = .78}, .35)
                     else
-                        Tw(sw, {BackgroundColor3 = T.ToggleBg}, .22)
-                        Tw(kn, {Position = UDim2.new(0, 3, .5, -5), BackgroundColor3 = T.ToggleKnob}, .22, Enum.EasingStyle.Back)
+                        Tw(sw, {BackgroundColor3 = T.ToggleBg, BackgroundTransparency = 0}, .22)
+                        Tw(kn, {Position = UDim2.new(0, 3, .5, -5), BackgroundColor3 = T.ToggleKnob, BackgroundTransparency = 0}, .22, Enum.EasingStyle.Back)
                         Tw(gl, {BackgroundTransparency = 1}, .22)
                     end
                     UpdateDirty(dirtyDot, val, elem._default, "Toggle")
@@ -1340,9 +1315,10 @@ function Library:new_tab(name, icon)
                     Text = "", Size = UDim2.new(1, 0, 1, 0),
                     BackgroundTransparency = 1, ZIndex = 11,
                 }, row)
+                local hovering = false
                 click.MouseButton1Click:Connect(function() Set(not toggled) end)
-                click.MouseEnter:Connect(function() Tw(hov, {BackgroundTransparency = .88}, .12) end)
-                click.MouseLeave:Connect(function() Tw(hov, {BackgroundTransparency = 1}, .12) end)
+                click.MouseEnter:Connect(function() hovering = true; Tw(hov, {BackgroundTransparency = .88}, .12) end)
+                click.MouseLeave:Connect(function() hovering = false; Tw(hov, {BackgroundTransparency = 1}, .12) end)
                 gear.MouseButton1Click:Connect(function() win:_openKeybindPopup(elem, gear) end)
 
                 elem._gear = gear; elem._row = row
@@ -2385,7 +2361,10 @@ function Library:_openColorPicker(elem, anchor, currentColor, onColorChange)
     task.defer(function()
         if not anchor or not anchor.Parent then return end
         local ap, as = anchor.AbsolutePosition, anchor.AbsoluteSize
-        pop.Position = UDim2.new(0, math.clamp(ap.X - 200, 4, 900), 0, math.clamp(ap.Y + as.Y + 6, 4, 500))
+        local popX = ap.X - 240 - 10
+        if popX < 10 then popX = ap.X + as.X + 10 end
+        local scrY = self.Gui and self.Gui:FindFirstChild("Main") and self.Gui.Main.AbsoluteSize.Y or 500
+        pop.Position = UDim2.new(0, popX, 0, math.clamp(ap.Y - (285/2) + (as.Y/2), 10, scrY - 290))
         Tw(pop, {BackgroundTransparency = 0}, .22, Enum.EasingStyle.Back)
     end)
 
