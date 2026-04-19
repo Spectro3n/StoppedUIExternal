@@ -20,6 +20,18 @@ local LP      = Players.LocalPlayer
 -- ═══════════════════════════════════════════════════
 Library.Themes = {
     Default = {
+        BG=Color3.fromRGB(18,18,22),IconBar=Color3.fromRGB(22,22,26),Panel=Color3.fromRGB(26,26,30),
+        Elevated=Color3.fromRGB(34,34,38),Hover=Color3.fromRGB(42,42,48),Active=Color3.fromRGB(50,50,56),
+        Card=Color3.fromRGB(24,24,28),CardHead=Color3.fromRGB(30,30,34),
+        Accent=Color3.fromRGB(160,165,175),AccentDim=Color3.fromRGB(90,92,100),AccentGlow=Color3.fromRGB(130,135,145),
+        Text=Color3.fromRGB(220,220,225),TextSub=Color3.fromRGB(130,130,140),
+        TextMut=Color3.fromRGB(68,68,78),TextDis=Color3.fromRGB(44,44,52),
+        Border=Color3.fromRGB(36,36,42),BorderLight=Color3.fromRGB(50,50,58),
+        Success=Color3.fromRGB(75,210,120),Warning=Color3.fromRGB(245,190,60),Danger=Color3.fromRGB(220,65,65),
+        ToggleBg=Color3.fromRGB(28,28,32),ToggleKnob=Color3.fromRGB(80,80,90),
+        SliderTrack=Color3.fromRGB(26,26,30),SliderFill=Color3.fromRGB(160,165,175),SliderKnob=Color3.fromRGB(220,222,228),
+    },
+    Stopped = {
         BG=Color3.fromRGB(8,8,12),IconBar=Color3.fromRGB(10,10,15),Panel=Color3.fromRGB(14,14,20),
         Elevated=Color3.fromRGB(20,20,28),Hover=Color3.fromRGB(28,28,38),Active=Color3.fromRGB(35,35,48),
         Card=Color3.fromRGB(16,16,23),CardHead=Color3.fromRGB(20,20,28),
@@ -342,7 +354,7 @@ function Library.new(title, toggleKey)
     win._allConns = NewConnBag()
 
     local W, H = 780, 490
-    local TB, IW, SW, GAP = 46, 46, 150, 10
+    local TB, DK, GAP = 46, 56, 10
 
     -- ScreenGui
     local gui = I("ScreenGui", {
@@ -428,18 +440,7 @@ function Library.new(title, toggleKey)
     }, topbar)
     Reg(tbFill, "BackgroundColor3", "Panel")
 
-    local acLine = I("Frame", {
-        Size = UDim2.new(1, -28, 0, 2), Position = UDim2.new(0, 14, 0, 0),
-        BackgroundColor3 = T.Accent, BorderSizePixel = 0, ZIndex = 15,
-    }, topbar)
-    Cn(1, acLine); Reg(acLine, "BackgroundColor3", "Accent")
-    I("UIGradient", {
-        Transparency = NumberSequence.new{
-            NumberSequenceKeypoint.new(0, .8),
-            NumberSequenceKeypoint.new(.5, .05),
-            NumberSequenceKeypoint.new(1, .8),
-        },
-    }, acLine)
+
 
     local tbDiv = I("Frame", {
         Size = UDim2.new(1, 0, 0, 1), Position = UDim2.new(0, 0, 1, -1),
@@ -449,7 +450,7 @@ function Library.new(title, toggleKey)
 
     local titleLbl = I("TextLabel", {
         Text = win.Title, Size = UDim2.new(0, 200, 1, 0),
-        Position = UDim2.new(0, IW + 14, 0, 0),
+        Position = UDim2.new(0, 14, 0, 0),
         BackgroundTransparency = 1, TextColor3 = T.Text, TextSize = 14,
         Font = Enum.Font.GothamBold, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 12,
     }, topbar)
@@ -478,18 +479,26 @@ function Library.new(title, toggleKey)
     }, searchFrame)
     Reg(searchBox, "TextColor3", "Text"); Reg(searchBox, "PlaceholderColor3", "TextDis")
 
-    -- Avatar
+    -- Avatar (player headshot)
     local avatar = I("Frame", {
         Size = UDim2.new(0, 30, 0, 30), Position = UDim2.new(1, -40, .5, -15),
-        BackgroundColor3 = T.Accent, BorderSizePixel = 0, ZIndex = 12,
+        BackgroundColor3 = T.Elevated, BorderSizePixel = 0, ZIndex = 12,
+        ClipsDescendants = true,
     }, topbar)
-    Cn(15, avatar); Reg(avatar, "BackgroundColor3", "Accent")
-    I("TextLabel", {
-        Text = string.upper(string.sub(LP.Name, 1, 1)),
+    Cn(15, avatar); Reg(avatar, "BackgroundColor3", "Elevated")
+    St(T.BorderLight, 1.5, avatar)
+
+    local avatarImg = I("ImageLabel", {
         Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1,
-        TextColor3 = Color3.new(1, 1, 1), TextSize = 12,
-        Font = Enum.Font.GothamBold, ZIndex = 13,
+        ZIndex = 13, ScaleType = Enum.ScaleType.Crop,
     }, avatar)
+    task.spawn(function()
+        local ok, thumb = pcall(function()
+            return Players:GetUserThumbnailAsync(LP.UserId,
+                Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size48x48)
+        end)
+        if ok and thumb then avatarImg.Image = thumb end
+    end)
 
     I("TextLabel", {
         Text = LP.DisplayName, Size = UDim2.new(0, 95, 0, 13),
@@ -538,75 +547,48 @@ function Library.new(title, toggleKey)
         end))
     end
 
-    -- ══ Icon Sidebar ══
-    local iconBar = I("Frame", {
-        Size = UDim2.new(0, IW, 1, -TB), Position = UDim2.new(0, 0, 0, TB),
-        BackgroundColor3 = T.IconBar, BorderSizePixel = 0, ZIndex = 8,
+    -- ══ Floating Dock (replaces sidebars) ══
+    local dockOuter = I("Frame", {
+        Name = "Dock",
+        Size = UDim2.new(0, 0, 0, 44),
+        AutomaticSize = Enum.AutomaticSize.X,
+        Position = UDim2.new(0.5, 0, 1, -6),
+        AnchorPoint = Vector2.new(0.5, 1),
+        BackgroundColor3 = T.Panel,
+        BackgroundTransparency = 0.08,
+        BorderSizePixel = 0, ZIndex = 20, ClipsDescendants = false,
     }, main)
-    Reg(iconBar, "BackgroundColor3", "IconBar")
-    local iconDiv = I("Frame", {
-        Size = UDim2.new(0, 1, 1, 0), Position = UDim2.new(1, 0, 0, 0),
-        BackgroundColor3 = T.Border, BorderSizePixel = 0, ZIndex = 9,
-    }, iconBar)
-    Reg(iconDiv, "BackgroundColor3", "Border")
+    Cn(12, dockOuter); Shadow(dockOuter, 20)
+    Reg(dockOuter, "BackgroundColor3", "Panel")
+    local dockStroke = St(T.BorderLight, 1, dockOuter)
+    Reg(dockStroke, "Color", "BorderLight")
+    ApplyFrost(dockOuter, 20)
 
-    local iconScroll = I("ScrollingFrame", {
-        Size = UDim2.new(1, -1, 1, 0), BackgroundTransparency = 1,
-        BorderSizePixel = 0, ScrollBarThickness = 0,
-        CanvasSize = UDim2.new(0, 0, 0, 0), ZIndex = 9,
-    }, iconBar)
-    local iLay = Ls(iconScroll, 4); Pd(10, 10, 0, 0, iconScroll)
-    local iUpdating = false
-    iLay:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        if iUpdating then return end
-        iUpdating = true
-        task.defer(function()
-            iUpdating = false
-            pcall(function()
-                if iconScroll and iconScroll.Parent then
-                    iconScroll.CanvasSize = UDim2.new(0, 0, 0, iLay.AbsoluteContentSize.Y + 20)
-                end
-            end)
-        end)
+    local dockList = I("Frame", {
+        Name = "DockList",
+        Size = UDim2.new(0, 0, 1, 0),
+        AutomaticSize = Enum.AutomaticSize.X,
+        BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 21,
+    }, dockOuter)
+    I("UIListLayout", {
+        FillDirection = Enum.FillDirection.Horizontal,
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Padding = UDim.new(0, 6),
+        VerticalAlignment = Enum.VerticalAlignment.Center,
+    }, dockList)
+    Pd(0, 0, 10, 10, dockList)
+    win.DockList = dockList
+
+    -- Dock entry animation
+    dockOuter.BackgroundTransparency = 1
+    task.delay(.3, function()
+        Tw(dockOuter, {BackgroundTransparency = 0.08}, .5)
     end)
-    win.IconScroll = iconScroll
-
-    -- ══ Sub Sidebar ══
-    local subSide = I("Frame", {
-        Size = UDim2.new(0, SW, 1, -TB), Position = UDim2.new(0, IW, 0, TB),
-        BackgroundColor3 = T.Panel, BorderSizePixel = 0, ZIndex = 6,
-    }, main)
-    Reg(subSide, "BackgroundColor3", "Panel")
-    I("Frame", {
-        Size = UDim2.new(0, 1, 1, 0), Position = UDim2.new(1, 0, 0, 0),
-        BackgroundColor3 = T.Border, BorderSizePixel = 0, ZIndex = 7,
-    }, subSide)
-
-    local subScroll = I("ScrollingFrame", {
-        Size = UDim2.new(1, -1, 1, 0), BackgroundTransparency = 1,
-        BorderSizePixel = 0, ScrollBarThickness = 0,
-        CanvasSize = UDim2.new(0, 0, 0, 0), ZIndex = 7,
-    }, subSide)
-    local sLay = Ls(subScroll, 2); Pd(10, 10, 8, 8, subScroll)
-    local sUpdating = false
-    sLay:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        if sUpdating then return end
-        sUpdating = true
-        task.defer(function()
-            sUpdating = false
-            pcall(function()
-                if subScroll and subScroll.Parent then
-                    subScroll.CanvasSize = UDim2.new(0, 0, 0, sLay.AbsoluteContentSize.Y + 20)
-                end
-            end)
-        end)
-    end)
-    win.SubScroll = subScroll
 
     -- ══ Content ══
     local content = I("Frame", {
-        Size = UDim2.new(1, -(IW + SW), 1, -TB),
-        Position = UDim2.new(0, IW + SW, 0, TB),
+        Size = UDim2.new(1, 0, 1, -(TB + DK)),
+        Position = UDim2.new(0, 0, 0, TB),
         BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 4, ClipsDescendants = true,
     }, main)
     win.Content = content
@@ -625,7 +607,6 @@ function Library.new(title, toggleKey)
                     end
                 end
                 if sec.Frame then sec.Frame.Visible = any or q == "" end
-                if sec._subEntry then sec._subEntry.Visible = any or q == "" end
             end
         end
     end)
@@ -892,38 +873,78 @@ function Library:new_tab(name, icon)
     local tab = {Name = name, Icon = icon, Sections = {}, Active = false}
     local GAP = 10
 
-    local ib = I("TextButton", {
-        Name = name, Text = "", Size = UDim2.new(1, 0, 0, 40),
-        BackgroundColor3 = T.IconBar, BackgroundTransparency = .5,
-        BorderSizePixel = 0, AutoButtonColor = false, ZIndex = 10,
-    }, win.IconScroll)
-    Cn(8, ib); Reg(ib, "BackgroundColor3", "IconBar")
-    tab.IconBtn = ib
+    -- Dock button
+    local isImageIcon = type(icon) == "string" and (tonumber(icon) ~= nil or string.find(icon, "rbxassetid://", 1, true))
 
-    local ind = I("Frame", {
-        Size = UDim2.new(0, 3, 0, 0),
-        Position = UDim2.new(0, 3, .5, 0), AnchorPoint = Vector2.new(0, .5),
-        BackgroundColor3 = T.TextMut, BorderSizePixel = 0, ZIndex = 11,
-    }, ib)
-    Cn(2, ind); Reg(ind, "BackgroundColor3", "TextMut")
-    tab.Indicator = ind
+    local dockBtn = I("TextButton", {
+        Name = name, Text = "",
+        Size = UDim2.new(0, 36, 0, 36),
+        BackgroundColor3 = T.Elevated,
+        BackgroundTransparency = 0.4,
+        BorderSizePixel = 0, AutoButtonColor = false, ZIndex = 22,
+    }, win.DockList)
+    Cn(10, dockBtn)
+    Reg(dockBtn, "BackgroundColor3", "Elevated")
+    tab.DockBtn = dockBtn
 
-    local il = I("TextLabel", {
-        Text = icon, Size = UDim2.new(1, 0, 1, 0),
-        BackgroundTransparency = 1, TextColor3 = T.TextMut,
-        TextSize = 15, Font = Enum.Font.GothamBold, ZIndex = 11,
-    }, ib)
-    Reg(il, "TextColor3", "TextMut")
-    tab.IconLabel = il
+    -- Glow behind active icon
+    local dockGlow = I("Frame", {
+        Size = UDim2.new(1, 8, 1, 8),
+        Position = UDim2.new(0.5, 0, 0.5, 0),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundColor3 = T.AccentGlow,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0, ZIndex = 21,
+    }, dockBtn)
+    Cn(12, dockGlow)
+    Reg(dockGlow, "BackgroundColor3", "AccentGlow")
+    tab.DockGlow = dockGlow
+
+    -- Active dot below
+    local dockDot = I("Frame", {
+        Size = UDim2.new(0, 0, 0, 3),
+        Position = UDim2.new(0.5, 0, 1, 3),
+        AnchorPoint = Vector2.new(0.5, 0),
+        BackgroundColor3 = T.Accent,
+        BorderSizePixel = 0, ZIndex = 23,
+    }, dockBtn)
+    Cn(2, dockDot)
+    Reg(dockDot, "BackgroundColor3", "Accent")
+    tab.DockDot = dockDot
+
+    -- Icon content (text or image)
+    local iconLbl, iconImg
+    if isImageIcon then
+        local imgId = tonumber(icon) and ("rbxassetid://" .. icon) or icon
+        iconImg = I("ImageLabel", {
+            Image = imgId,
+            Size = UDim2.new(0, 18, 0, 18),
+            Position = UDim2.new(0.5, 0, 0.5, 0),
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            BackgroundTransparency = 1,
+            ImageColor3 = T.TextMut,
+            ZIndex = 23,
+        }, dockBtn)
+        Reg(iconImg, "ImageColor3", "TextMut")
+        tab.IconImage = iconImg
+    else
+        iconLbl = I("TextLabel", {
+            Text = icon, Size = UDim2.new(1, 0, 1, 0),
+            BackgroundTransparency = 1, TextColor3 = T.TextMut,
+            TextSize = 14, Font = Enum.Font.GothamBold, ZIndex = 23,
+        }, dockBtn)
+        Reg(iconLbl, "TextColor3", "TextMut")
+        tab.IconLabel = iconLbl
+    end
 
     -- Badge
     local badge = I("TextLabel", {
         Text = "", Size = UDim2.new(0, 0, 0, 14), AutomaticSize = Enum.AutomaticSize.X,
-        Position = UDim2.new(1, -6, 0, 3), AnchorPoint = Vector2.new(1, 0),
+        Position = UDim2.new(1, -2, 0, -2), AnchorPoint = Vector2.new(1, 0),
         BackgroundColor3 = T.Danger, TextColor3 = Color3.new(1, 1, 1),
         TextSize = 8, Font = Enum.Font.GothamBold,
-        BorderSizePixel = 0, Visible = false, ZIndex = 12,
-    }, ib)
+        BorderSizePixel = 0, Visible = false, ZIndex = 25,
+    }, dockBtn)
     Cn(7, badge); Pd(0, 0, 4, 4, badge)
     Reg(badge, "BackgroundColor3", "Danger")
     tab._badge = badge
@@ -936,48 +957,38 @@ function Library:new_tab(name, icon)
         end
     end
 
-    -- Tooltip
+    -- Tooltip (appears above dock button)
     local tt = I("TextLabel", {
         Text = " " .. name .. " ", Size = UDim2.new(0, 0, 0, 22),
         AutomaticSize = Enum.AutomaticSize.X,
-        Position = UDim2.new(1, 8, .5, -11),
+        Position = UDim2.new(0.5, 0, 0, -28),
+        AnchorPoint = Vector2.new(0.5, 0),
         BackgroundColor3 = T.Elevated, TextColor3 = T.Text,
-        TextSize = 11, Font = Enum.Font.Gotham, BorderSizePixel = 0,
-        Visible = false, ZIndex = 900,
-    }, ib)
+        TextSize = 10, Font = Enum.Font.Gotham, BorderSizePixel = 0,
+        Visible = false, ZIndex = 900, BackgroundTransparency = .05,
+    }, dockBtn)
     Cn(5, tt); St(T.BorderLight, 1, tt)
     Reg(tt, "BackgroundColor3", "Elevated"); Reg(tt, "TextColor3", "Text")
 
-    ib.MouseEnter:Connect(function()
+    -- Hover: scale up icon
+    dockBtn.MouseEnter:Connect(function()
         tt.Visible = true
         if not tab.Active then
-            Tw(ib, {BackgroundTransparency = 0, BackgroundColor3 = T.Hover}, .15)
-            Tw(il, {TextColor3 = T.TextSub}, .15)
+            Tw(dockBtn, {BackgroundTransparency = 0.15, Size = UDim2.new(0, 40, 0, 40)}, .15, Enum.EasingStyle.Back)
+            if iconLbl then Tw(iconLbl, {TextColor3 = T.TextSub}, .12) end
+            if iconImg then Tw(iconImg, {ImageColor3 = T.TextSub}, .12) end
         end
     end)
-    ib.MouseLeave:Connect(function()
+    dockBtn.MouseLeave:Connect(function()
         tt.Visible = false
         if not tab.Active then
-            Tw(ib, {BackgroundTransparency = .5, BackgroundColor3 = T.IconBar}, .15)
-            Tw(il, {TextColor3 = T.TextMut}, .15)
+            Tw(dockBtn, {BackgroundTransparency = 0.4, Size = UDim2.new(0, 36, 0, 36)}, .15, Enum.EasingStyle.Back)
+            if iconLbl then Tw(iconLbl, {TextColor3 = T.TextMut}, .12) end
+            if iconImg then Tw(iconImg, {ImageColor3 = T.TextMut}, .12) end
         end
     end)
-    ib.MouseButton1Click:Connect(function() win:SelectTab(tab) end)
+    dockBtn.MouseButton1Click:Connect(function() win:SelectTab(tab) end)
 
-    -- Sub container
-    local subC = I("Frame", {
-        Name = name .. "_sub", Size = UDim2.new(1, 0, 0, 0),
-        AutomaticSize = Enum.AutomaticSize.Y,
-        BackgroundTransparency = 1, BorderSizePixel = 0, Visible = false, ZIndex = 7,
-    }, win.SubScroll)
-    Ls(subC, 2); tab.SubContainer = subC
-
-    I("TextLabel", {
-        Text = string.upper(name), Size = UDim2.new(1, 0, 0, 26),
-        BackgroundTransparency = 1, TextColor3 = T.TextMut,
-        TextSize = 9, Font = Enum.Font.GothamBold,
-        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 8,
-    }, subC)
 
     -- Page
     local page = I("ScrollingFrame", {
@@ -1041,44 +1052,6 @@ function Library:new_tab(name, icon)
         sectionOptions = sectionOptions or {}
         local targetCol = side == "Right" and rightCol or leftCol
         local section = {Name = sectionName, Elements = {}, Side = side}
-
-        -- Sub entry
-        local subE = I("TextButton", {
-            Name = sectionName, Text = "", Size = UDim2.new(1, 0, 0, 26),
-            BackgroundColor3 = T.Panel, BackgroundTransparency = .5,
-            BorderSizePixel = 0, AutoButtonColor = false, ZIndex = 8,
-        }, subC)
-        Cn(5, subE); section._subEntry = subE
-
-        local dm = I("TextLabel", {
-            Text = "◆", Size = UDim2.new(0, 14, 1, 0), Position = UDim2.new(0, 4, 0, 0),
-            BackgroundTransparency = 1, TextColor3 = T.TextMut,
-            TextSize = 6, Font = Enum.Font.GothamBold, ZIndex = 9,
-        }, subE)
-        Reg(dm, "TextColor3", "TextMut")
-
-        local sl = I("TextLabel", {
-            Text = sectionName, Size = UDim2.new(1, -22, 1, 0), Position = UDim2.new(0, 18, 0, 0),
-            BackgroundTransparency = 1, TextColor3 = T.TextSub,
-            TextSize = 11, Font = Enum.Font.Gotham,
-            TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 9,
-        }, subE)
-        Reg(sl, "TextColor3", "TextSub")
-
-        subE.MouseEnter:Connect(function() Tw(subE, {BackgroundTransparency = 0, BackgroundColor3 = T.Hover}, .12) end)
-        subE.MouseLeave:Connect(function() Tw(subE, {BackgroundTransparency = .5, BackgroundColor3 = T.Panel}, .12) end)
-        subE.MouseButton1Click:Connect(function()
-            task.defer(function()
-                if section.Frame then
-                    local tY = section.Frame.AbsolutePosition.Y - page.AbsolutePosition.Y + page.CanvasPosition.Y
-                    TS:Create(page, TweenInfo.new(.4, Enum.EasingStyle.Quint), {
-                        CanvasPosition = Vector2.new(0, math.max(0, tY - 8))
-                    }):Play()
-                end
-            end)
-            Tw(dm, {TextColor3 = T.Accent}, .15); Tw(sl, {TextColor3 = T.Text}, .15)
-            task.delay(.8, function() Tw(dm, {TextColor3 = T.TextMut}, .3); Tw(sl, {TextColor3 = T.TextSub}, .3) end)
-        end)
 
         -- Card
         local card = I("Frame", {
@@ -1981,16 +1954,22 @@ function Library:SelectTab(target)
     end
 
     for _, t in ipairs(self.Tabs) do
-        t.Active = false; t.SubContainer.Visible = false
-        Tw(t.IconBtn, {BackgroundTransparency = .5, BackgroundColor3 = T.IconBar}, .18)
-        Tw(t.IconLabel, {TextColor3 = T.TextMut}, .18)
-        Tw(t.Indicator, {BackgroundColor3 = T.TextMut, Size = UDim2.new(0, 3, 0, 0)}, .18)
+        t.Active = false
+        -- Reset dock button
+        Tw(t.DockBtn, {BackgroundTransparency = 0.4, Size = UDim2.new(0, 36, 0, 36)}, .18)
+        if t.IconLabel then Tw(t.IconLabel, {TextColor3 = T.TextMut}, .18) end
+        if t.IconImage then Tw(t.IconImage, {ImageColor3 = T.TextMut}, .18) end
+        Tw(t.DockGlow, {BackgroundTransparency = 1}, .18)
+        Tw(t.DockDot, {Size = UDim2.new(0, 0, 0, 3)}, .18)
     end
 
-    target.Active = true; target.SubContainer.Visible = true
-    Tw(target.IconBtn, {BackgroundTransparency = 0, BackgroundColor3 = T.Active}, .18)
-    Tw(target.IconLabel, {TextColor3 = T.Accent}, .18)
-    Tw(target.Indicator, {BackgroundColor3 = T.Accent, Size = UDim2.new(0, 3, 0, 20)}, .28, Enum.EasingStyle.Back)
+    target.Active = true
+    -- Highlight active dock button
+    Tw(target.DockBtn, {BackgroundTransparency = 0, Size = UDim2.new(0, 40, 0, 40)}, .22, Enum.EasingStyle.Back)
+    if target.IconLabel then Tw(target.IconLabel, {TextColor3 = T.Accent}, .22) end
+    if target.IconImage then Tw(target.IconImage, {ImageColor3 = T.Accent}, .22) end
+    Tw(target.DockGlow, {BackgroundTransparency = 0.82}, .3)
+    Tw(target.DockDot, {Size = UDim2.new(0, 14, 0, 3)}, .28, Enum.EasingStyle.Back)
 
     task.delay(.12, function()
         target.Page.Visible = true
