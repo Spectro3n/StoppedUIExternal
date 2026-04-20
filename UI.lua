@@ -407,6 +407,7 @@ function Library.new(title, toggleKey)
         Name = "Ov", Size = UDim2.new(1, 0, 1, 0),
         BackgroundTransparency = 1, ZIndex = 500,
     }, gui)
+    Library.Overlay = win.Overlay
 
     -- Tooltip
     local tooltipLbl = I("TextLabel", {
@@ -592,13 +593,20 @@ function Library.new(title, toggleKey)
         Position = UDim2.new(0.5, 0, 0, 0),
         AnchorPoint = Vector2.new(0.5, 0),
         BackgroundColor3 = T.Elevated,
-        BackgroundTransparency = 0.05,
+        BackgroundTransparency = 0.35,
         BorderSizePixel = 0, ZIndex = 31, ClipsDescendants = true,
     }, islandWrap)
     Cn(18, dynamicIsland); Shadow(dynamicIsland, 25)
     Reg(dynamicIsland, "BackgroundColor3", "Elevated")
+    
+    local islandFrost = I("Frame", {
+        Size = UDim2.new(1, 0, 1, 0), BackgroundColor3 = T.BG, BackgroundTransparency = 0.5, ZIndex = 30,
+    }, dynamicIsland)
+    Cn(18, islandFrost); Reg(islandFrost, "BackgroundColor3", "BG")
+
     local islandStroke = St(T.BorderLight, 1, dynamicIsland)
     Reg(islandStroke, "Color", "BorderLight")
+    islandStroke.Transparency = 0.5
 
     local islandList = I("Frame", {
         Name = "IslandList",
@@ -628,10 +636,13 @@ function Library.new(title, toggleKey)
                 Tw(t.DockBtn, {Size = UDim2.new(0, expanded and 44 or 40, 0, expanded and 36 or 36)}, .4, Enum.EasingStyle.Exponential)
                 if t.IconLabel then Tw(t.IconLabel, {TextTransparency = 0}, .2) end
                 if t.IconImage then Tw(t.IconImage, {ImageTransparency = 0}, .2) end
+                Tw(t.DockBtn, {BackgroundColor3 = T.Accent, BackgroundTransparency = 0.8}, .3)
+                Tw(t.DockDot, {Size = UDim2.new(0, expanded and 16 or 4, 0, 3)}, .3)
             else
-                Tw(t.DockBtn, {Size = UDim2.new(0, expanded and 36 or 0, 0, 36)}, .4, Enum.EasingStyle.Exponential)
+                Tw(t.DockBtn, {Size = UDim2.new(0, expanded and 36 or 0, 0, 36), BackgroundColor3 = T.Elevated, BackgroundTransparency = 1}, .4, Enum.EasingStyle.Exponential)
                 if t.IconLabel then Tw(t.IconLabel, {TextTransparency = expanded and 0.4 or 1}, .3) end
                 if t.IconImage then Tw(t.IconImage, {ImageTransparency = expanded and 0.4 or 1}, .3) end
+                Tw(t.DockDot, {Size = UDim2.new(0, 0, 0, 3)}, .3)
             end
         end
         local targetWidth = math.max(40, islandLayout.AbsoluteContentSize.X + 16)
@@ -844,14 +855,14 @@ function Library:Dialog(title, message, onConfirm, onCancel)
     local dim = I("Frame", {
         Size = UDim2.new(1, 0, 1, 0),
         BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 1, ZIndex = 800,
-    }, self.Overlay)
+    }, Library.Overlay)
     Tw(dim, {BackgroundTransparency = .5}, .3)
 
     local dialog = I("Frame", {
         Size = UDim2.new(0, 0, 0, 0),
         Position = UDim2.new(.5, 0, .5, 0), AnchorPoint = Vector2.new(.5, .5),
         BackgroundColor3 = T.Elevated, BorderSizePixel = 0, ZIndex = 801, ClipsDescendants = true,
-    }, self.Overlay)
+    }, Library.Overlay)
     Cn(12, dialog); St(T.BorderLight, 1, dialog); Shadow(dialog, 801)
     Reg(dialog, "BackgroundColor3", "Elevated")
 
@@ -2794,17 +2805,34 @@ local function AcquireNotifCard(holder, accentColor)
             Size = UDim2.new(1, 0, 0, 42),
             Position = UDim2.new(1.2, 0, 0, 0),
             BackgroundColor3 = T.Panel, BorderSizePixel = 0,
-            BackgroundTransparency = .3, ZIndex = 10, ClipsDescendants = true,
+            BackgroundTransparency = .15, ZIndex = 10, ClipsDescendants = true,
         })
         local cn = Cn(10, card); cn.Name = "_corner"
-        local st = St(T.Border, 1, card); st.Name = "_stroke"
+        
+        local frost = I("Frame", {
+            Name = "_frost", Size = UDim2.new(1, 0, 1, 0),
+            BackgroundColor3 = T.BG, BackgroundTransparency = 0.5,
+            BorderSizePixel = 0, ZIndex = 9,
+        }, card)
+        Cn(10, frost); Reg(frost, "BackgroundColor3", "BG")
+        I("UIGradient", {
+            Transparency = NumberSequence.new{
+                NumberSequenceKeypoint.new(0, .6),
+                NumberSequenceKeypoint.new(1, .9),
+            }, Rotation = -45,
+        }, frost)
+        
+        local st = St(T.BorderLight, 1, card); st.Name = "_stroke"; st.Transparency = 0.6
+        Reg(st, "Color", "BorderLight")
 
         -- Accent bar
         local bar = I("Frame", {
             Name = "_accentBar",
-            Size = UDim2.new(0, 3, 1, 0),
+            Size = UDim2.new(0, 3, 1, -16), Position = UDim2.new(0, 8, 0, 8),
             BackgroundColor3 = accentColor, BorderSizePixel = 0, ZIndex = 11,
         }, card)
+        Cn(1, bar)
+        local glow = St(accentColor, 1, bar); glow.Transparency = 0.5
     end
     return card
 end
@@ -2985,17 +3013,15 @@ function Library:_showNotification(title, desc, duration, nType, actions)
 
     -- Progress bar
     local pC = I("Frame", {
-        Size = UDim2.new(1, 0, 0, 2),
-        BackgroundColor3 = T.Elevated, BorderSizePixel = 0,
-        ZIndex = 12, LayoutOrder = 5,
-    }, inner)
-    Cn(1, pC)
+        Size = UDim2.new(1, 0, 0, 2), Position = UDim2.new(0, 0, 1, -2),
+        BackgroundColor3 = ac, BackgroundTransparency = .8, BorderSizePixel = 0,
+        ZIndex = 12,
+    }, nf)
 
     local pF = I("Frame", {
         Size = UDim2.new(1, 0, 1, 0),
         BackgroundColor3 = ac, BorderSizePixel = 0, ZIndex = 13,
     }, pC)
-    Cn(1, pF)
 
     -- ★ Hover pause state
     local dismissed = false
@@ -3006,7 +3032,7 @@ function Library:_showNotification(title, desc, duration, nType, actions)
     -- ═══ ENTRY ANIMATION (sequenciada) ═══
     task.defer(function()
         if not nf or not nf.Parent then return end
-        Tw(nf, {Position = UDim2.new(0, 0, 0, 0)}, .5)
+        Tw(nf, {Position = UDim2.new(0, 0, 0, 0)}, .6, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out)
     end)
     task.delay(.08, function()
         if not nf or not nf.Parent then return end
@@ -3014,21 +3040,14 @@ function Library:_showNotification(title, desc, duration, nType, actions)
     end)
     task.delay(.12, function()
         if not dot or not dot.Parent then return end
-        Tw(dot, {Size = UDim2.new(0, 8, 0, 8), Position = UDim2.new(0, -1, .5, -4)}, .12)
-        task.delay(.12, function()
+        Tw(dot, {Size = UDim2.new(0, 8, 0, 8), Position = UDim2.new(0, -1, .5, -4)}, .2, Enum.EasingStyle.Back)
+        task.delay(.15, function()
             if not dot or not dot.Parent then return end
-            Tw(dot, {Size = UDim2.new(0, 6, 0, 6), Position = UDim2.new(0, 0, .5, -3)}, .12)
+            Tw(dot, {Size = UDim2.new(0, 6, 0, 6), Position = UDim2.new(0, 0, .5, -3)}, .2, Enum.EasingStyle.Back)
+            if iconLbl and iconLbl.Parent then Tw(iconLbl, {TextTransparency = 0}, .3) end
+            if tLbl and tLbl.Parent then Tw(tLbl, {TextTransparency = 0}, .3) end
+            if dLbl and dLbl.Parent then Tw(dLbl, {TextTransparency = 0}, .3) end
         end)
-    end)
-    task.delay(.15, function()
-        if iconLbl and iconLbl.Parent then Tw(iconLbl, {TextTransparency = 0}, .25) end
-    end)
-    task.delay(.18, function()
-        if not tLbl or not tLbl.Parent then return end
-        Tw(tLbl, {TextTransparency = 0}, .3)
-    end)
-    task.delay(.26, function()
-        if dLbl and dLbl.Parent then Tw(dLbl, {TextTransparency = .1}, .3) end
     end)
 
     -- ★ Dismiss function com reciclagem
