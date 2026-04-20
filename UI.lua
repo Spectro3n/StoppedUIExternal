@@ -1155,8 +1155,9 @@ function Library:new_tab(name, icon)
         function section:sub_folder(folderName)
             local fRow = I("Frame", {
                 Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
-                BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 7, ClipsDescendants = true,
+                BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 7, ClipsDescendants = false,
             }, ec)
+            Ls(fRow, 0)
 
             local fBtn = I("TextButton", {
                 Text = "", Size = UDim2.new(1, 0, 0, 28),
@@ -1242,7 +1243,7 @@ function Library:new_tab(name, icon)
                     local tTimer
                     local hBtn = I("TextButton", {
                         Text = "", Size = UDim2.new(1, 0, 1, 0),
-                        BackgroundTransparency = 1, ZIndex = 15,
+                        BackgroundTransparency = 1, ZIndex = 1, AutoButtonColor = false,
                     }, f)
                     hBtn.MouseEnter:Connect(function()
                         tTimer = task.delay(.8, function() win:_showTooltip(tooltipText) end)
