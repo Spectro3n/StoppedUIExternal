@@ -2776,7 +2776,7 @@ local function RecycleNotif(card)
     card.Visible = false
     -- Clear children except structural ones
     for _, ch in ipairs(card:GetChildren()) do
-        if ch.Name ~= "_accentBar" and ch.Name ~= "_corner" and ch.Name ~= "_stroke" then
+        if ch.Name ~= "_frost" and ch.Name ~= "_corner" and ch.Name ~= "_stroke" then
             pcall(function() ch:Destroy() end)
         end
     end
@@ -2824,15 +2824,6 @@ local function AcquireNotifCard(holder, accentColor)
         
         local st = St(T.BorderLight, 1, card); st.Name = "_stroke"; st.Transparency = 0.6
         Reg(st, "Color", "BorderLight")
-
-        -- Accent bar
-        local bar = I("Frame", {
-            Name = "_accentBar",
-            Size = UDim2.new(0, 3, 1, -16), Position = UDim2.new(0, 8, 0, 8),
-            BackgroundColor3 = accentColor, BorderSizePixel = 0, ZIndex = 11,
-        }, card)
-        Cn(1, bar)
-        local glow = St(accentColor, 1, bar); glow.Transparency = 0.5
     end
     return card
 end
@@ -2921,23 +2912,17 @@ function Library:_showNotification(title, desc, duration, nType, actions)
         BorderSizePixel = 0, ZIndex = 12, LayoutOrder = 1,
     }, inner)
 
-    local dot = I("Frame", {
-        Size = UDim2.new(0, 6, 0, 6), Position = UDim2.new(0, 0, .5, -3),
-        BackgroundColor3 = ac, BorderSizePixel = 0, ZIndex = 13,
-    }, titleRow)
-    Cn(3, dot)
-
     local iconLbl = I("TextLabel", {
         Text = iconText, Size = UDim2.new(0, 14, 1, 0),
-        Position = UDim2.new(0, 10, 0, 0),
+        Position = UDim2.new(0, 0, 0, 0),
         BackgroundTransparency = 1, TextColor3 = ac,
-        TextSize = 10, Font = Enum.Font.GothamBold, ZIndex = 13,
+        TextSize = 12, Font = Enum.Font.GothamBold, ZIndex = 13,
         TextTransparency = 1,
     }, titleRow)
 
     local tLbl = I("TextLabel", {
         Text = title or "Notification",
-        Size = UDim2.new(1, -28, 1, 0), Position = UDim2.new(0, 26, 0, 0),
+        Size = UDim2.new(1, -20, 1, 0), Position = UDim2.new(0, 20, 0, 0),
         BackgroundTransparency = 1, TextColor3 = T.Text,
         TextSize = 11, Font = Enum.Font.GothamBold,
         TextXAlignment = Enum.TextXAlignment.Left, TextTransparency = 1, ZIndex = 13,
@@ -3009,19 +2994,21 @@ function Library:_showNotification(title, desc, duration, nType, actions)
     end
 
     -- Spacer
-    I("Frame", {Size = UDim2.new(1, 0, 0, 3), BackgroundTransparency = 1, LayoutOrder = 4}, inner)
+    I("Frame", {Size = UDim2.new(1, 0, 0, 8), BackgroundTransparency = 1, LayoutOrder = 4}, inner)
 
     -- Progress bar
     local pC = I("Frame", {
-        Size = UDim2.new(1, 0, 0, 2), Position = UDim2.new(0, 0, 1, -2),
+        Size = UDim2.new(1, -24, 0, 3), Position = UDim2.new(0, 12, 1, -8),
         BackgroundColor3 = ac, BackgroundTransparency = .8, BorderSizePixel = 0,
         ZIndex = 12,
     }, nf)
+    Cn(2, pC)
 
     local pF = I("Frame", {
         Size = UDim2.new(1, 0, 1, 0),
         BackgroundColor3 = ac, BorderSizePixel = 0, ZIndex = 13,
     }, pC)
+    Cn(2, pF)
 
     -- ★ Hover pause state
     local dismissed = false
@@ -3032,22 +3019,16 @@ function Library:_showNotification(title, desc, duration, nType, actions)
     -- ═══ ENTRY ANIMATION (sequenciada) ═══
     task.defer(function()
         if not nf or not nf.Parent then return end
-        Tw(nf, {Position = UDim2.new(0, 0, 0, 0)}, .6, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out)
+        Tw(nf, {Position = UDim2.new(0, 0, 0, 0)}, .45, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
     end)
-    task.delay(.08, function()
+    task.delay(.05, function()
         if not nf or not nf.Parent then return end
         Tw(nf, {BackgroundTransparency = 0}, .35)
     end)
-    task.delay(.12, function()
-        if not dot or not dot.Parent then return end
-        Tw(dot, {Size = UDim2.new(0, 8, 0, 8), Position = UDim2.new(0, -1, .5, -4)}, .2, Enum.EasingStyle.Back)
-        task.delay(.15, function()
-            if not dot or not dot.Parent then return end
-            Tw(dot, {Size = UDim2.new(0, 6, 0, 6), Position = UDim2.new(0, 0, .5, -3)}, .2, Enum.EasingStyle.Back)
-            if iconLbl and iconLbl.Parent then Tw(iconLbl, {TextTransparency = 0}, .3) end
-            if tLbl and tLbl.Parent then Tw(tLbl, {TextTransparency = 0}, .3) end
-            if dLbl and dLbl.Parent then Tw(dLbl, {TextTransparency = 0}, .3) end
-        end)
+    task.delay(.1, function()
+        if iconLbl and iconLbl.Parent then Tw(iconLbl, {TextTransparency = 0}, .2) end
+        if tLbl and tLbl.Parent then Tw(tLbl, {TextTransparency = 0}, .2) end
+        if dLbl and dLbl.Parent then Tw(dLbl, {TextTransparency = 0}, .2) end
     end)
 
     -- ★ Dismiss function com reciclagem
