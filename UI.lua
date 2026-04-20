@@ -1155,9 +1155,8 @@ function Library:new_tab(name, icon)
         function section:sub_folder(folderName)
             local fRow = I("Frame", {
                 Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
-                BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 7, ClipsDescendants = false,
+                BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 7, ClipsDescendants = true,
             }, ec)
-            Ls(fRow, 0)
 
             local fBtn = I("TextButton", {
                 Text = "", Size = UDim2.new(1, 0, 0, 28),
