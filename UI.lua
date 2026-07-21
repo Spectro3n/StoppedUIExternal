@@ -129,6 +129,107 @@ function Library:SetTheme(name)
     Library._themed = alive
 end
 
+
+-- ═══════════════════════════════════════════════════
+--  UNIVERSAL ASSET & ICON HELPER (Emojis, Roblox IDs, Local PNGs, Web URLs)
+-- ═══════════════════════════════════════════════════
+local function IsEmoji(str)
+    if type(str) ~= "string" then return false end
+    -- Check for high-byte UTF-8 sequences typical of emojis
+    for i = 1, #str do
+        if string.byte(str, i) > 127 then return true end
+    end
+    return false
+end
+
+local function GetCustomAssetPath(pathOrUrl)
+    if type(pathOrUrl) ~= "string" then return nil end
+    
+    -- Roblox Asset ID
+    if tonumber(pathOrUrl) then
+        return "rbxassetid://" .. tostring(pathOrUrl)
+    elseif string.sub(pathOrUrl, 1, 13) == "rbxassetid://" or string.sub(pathOrUrl, 1, 11) == "rbxasset://" then
+        return pathOrUrl
+    end
+
+    -- Local PNG/JPG file or Web URL (using Executor environment functions if available)
+    local isUrl = string.sub(pathOrUrl, 1, 7) == "http://" or string.sub(pathOrUrl, 1, 8) == "https://"
+    local getcustomasset = (getcustomasset or getgenv and getgenv().getcustomasset) or (getsynasset or getgenv and getgenv().getsynasset)
+    local writefile = writefile or (getgenv and getgenv().writefile)
+    local readfile = readfile or (getgenv and getgenv().readfile)
+    local isfile = isfile or (getgenv and getgenv().isfile)
+    local httpget = (game and game.HttpGet)
+
+    if isUrl then
+        if writefile and getcustomasset then
+            local fileName = "nexui_asset_" .. string.lower(string.gsub(pathOrUrl, "%W", "")) .. ".png"
+            if not (isfile and isfile(fileName)) then
+                local success, body = pcall(function() return game:HttpGet(pathOrUrl) end)
+                if success and body then
+                    pcall(writefile, fileName, body)
+                end
+            end
+            if isfile and isfile(fileName) then
+                local success, asset = pcall(getcustomasset, fileName)
+                if success and asset then return asset end
+            end
+        end
+    elseif getcustomasset and isfile and isfile(pathOrUrl) then
+        local success, asset = pcall(getcustomasset, pathOrUrl)
+        if success and asset then return asset end
+    end
+
+    return pathOrUrl
+end
+
+local function CreateUniversalIcon(parent, iconData, props)
+    props = props or {}
+    local size = props.Size or UDim2.new(0, 18, 0, 18)
+    local pos = props.Position or UDim2.new(0.5, 0, 0.5, 0)
+    local anchor = props.AnchorPoint or Vector2.new(0.5, 0.5)
+    local zindex = props.ZIndex or 33
+    local color = props.Color or T.Text
+
+    if not iconData or iconData == "" then return nil end
+
+    -- Detect type
+    local isNum = tonumber(iconData) ~= nil
+    local isStr = type(iconData) == "string"
+    local isEmoji = isStr and IsEmoji(iconData) and not isNum and not string.find(iconData, "/")
+    local isImage = isNum or (isStr and (string.find(iconData, "rbxasset") or string.find(iconData, "http") or string.find(iconData, "%.png") or string.find(iconData, "%.jpg") or #iconData > 4))
+
+    if isEmoji or (isStr and not isImage) then
+        -- Render Emoji or Short Text
+        local lbl = I("TextLabel", {
+            Text = tostring(iconData),
+            Size = size,
+            Position = pos,
+            AnchorPoint = anchor,
+            BackgroundTransparency = 1,
+            TextColor3 = color,
+            TextSize = props.TextSize or 14,
+            Font = Enum.Font.GothamBold,
+            ZIndex = zindex,
+        }, parent)
+        Reg(lbl, "TextColor3", props.ThemeKey or "Text")
+        return lbl, "text"
+    else
+        -- Render Image (Asset ID, Local File, or Web URL)
+        local assetId = GetCustomAssetPath(iconData)
+        local img = I("ImageLabel", {
+            Image = assetId or "",
+            Size = size,
+            Position = pos,
+            AnchorPoint = anchor,
+            BackgroundTransparency = 1,
+            ImageColor3 = color,
+            ZIndex = zindex,
+        }, parent)
+        Reg(img, "ImageColor3", props.ThemeKey or "Text")
+        return img, "image"
+    end
+end
+
 local function Reg(o, p, k)
     if not o then return o end
     table.insert(Library._themed, {o, p, k})
@@ -1404,35 +1505,25 @@ function Library:new_tab(name, icon)
                 Library.Flags[flag] = {Slider = df}
                 elem._default = df
 
-                local trackY = descText and 38 or 30
-                local row = Row(descText and 60 or 46)
-
-                -- ★ Dirty
-                local dirtyDot = CreateDirtyDot(row, 7)
-                elem._dirtyDot = dirtyDot
-
-                local nameLbl = I("TextLabel", {
-                    Text = eName, Size = UDim2.new(.55, 0, 0, 18),
-                    Position = UDim2.new(0, 8, 0, 3),
-                    BackgroundTransparency = 1, TextColor3 = T.Text, TextSize = 11,
-                    Font = Enum.Font.Gotham, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 9,
-                }, row)
-                Reg(nameLbl, "TextColor3", "Text")
-                if descText then AddDesc(row, 18) end
+                local trackY = descText and 38 or 26
 
                 local function Fmt(v)
-                    if dc > 0 then return string.format("%."..dc.."f", v) .. suffix
-                    else return tostring(math.floor(v + .5)) .. suffix end
+                    if dc == 0 then
+                        return string.format("%d", math.floor(v + .5)) .. suffix
+                    else
+                        return string.format("%." .. dc .. "f", v) .. suffix
+                    end
                 end
 
                 local valLbl = I("TextButton", {
-                    Text = Fmt(df), Size = UDim2.new(.45, -8, 0, 18),
-                    Position = UDim2.new(.55, 0, 0, 3),
-                    BackgroundTransparency = 1, TextColor3 = T.Accent, TextSize = 11,
-                    Font = Enum.Font.GothamBold, TextXAlignment = Enum.TextXAlignment.Right,
-                    AutoButtonColor = false, ZIndex = 9,
+                    Text = Fmt(df), Size = UDim2.new(0, 55, 0, 18),
+                    Position = UDim2.new(1, -63, 0, 3),
+                    BackgroundColor3 = T.Elevated, TextColor3 = T.Accent,
+                    TextSize = 11, Font = Enum.Font.GothamBold,
+                    BorderSizePixel = 0, ZIndex = 14, AutoButtonColor = false,
                 }, row)
-                Reg(valLbl, "TextColor3", "Accent")
+                Cn(4, valLbl); St(T.Border, 1, valLbl)
+                Reg(valLbl, "BackgroundColor3", "Elevated"); Reg(valLbl, "TextColor3", "Accent")
 
                 local editBox = I("TextBox", {
                     Text = "", Size = UDim2.new(0, 55, 0, 18),
@@ -1482,13 +1573,14 @@ function Library:new_tab(name, icon)
                 Reg(ftip, "BackgroundColor3", "Elevated"); Reg(ftip, "TextColor3", "Text")
 
                 local function PosHandle()
-                    if not track or not track.Parent or not row or not row.Parent then return end
+                    if not track or not track.Parent or not row or not row.Parent or track.AbsoluteSize.X <= 0 then return end
                     local range = mx - mn; if range <= 0 then range = 1 end
-                    local pct = math.clamp((Library.Flags[flag].Slider - mn) / range, 0, 1)
+                    local currentVal = Library.Flags[flag] and Library.Flags[flag].Slider or df
+                    local pct = math.clamp((currentVal - mn) / range, 0, 1)
                     local tx, tw2 = track.AbsolutePosition.X, math.max(track.AbsoluteSize.X, 1)
                     local rx = row.AbsolutePosition.X
-                    handle.Position = UDim2.new(0, tx - rx + pct * tw2 - 6, 0, trackY - 3)
-                    ftip.Position = UDim2.new(0, tx - rx + pct * tw2 - 15, 0, trackY - 20)
+                    handle.Position = UDim2.new(0, math.clamp(tx - rx + pct * tw2 - 6, 2, row.AbsoluteSize.X - 14), 0, trackY - 3)
+                    ftip.Position = UDim2.new(0, math.clamp(tx - rx + pct * tw2 - 15, 0, row.AbsoluteSize.X - 30), 0, trackY - 20)
                 end
 
                 local function SetSlider(v, silent)
@@ -1500,18 +1592,22 @@ function Library:new_tab(name, icon)
                     valLbl.Text = Fmt(r); ftip.Text = Fmt(r)
                     PosHandle()
                     UpdateDirty(dirtyDot, r, elem._default, "Slider")
-                    if not silent then pcall(callback, {Slider = r}) end
+                    if not silent then
+                        pcall(callback, r) -- Send value directly for maximum compatibility
+                        pcall(callback, {Slider = r}) -- Fallback table format
+                    end
                     CheckDeps(flag)
                 end
                 elem._setValue = SetSlider; elem._getValue = function() return Library.Flags[flag].Slider end
+
                 task.spawn(function()
-                    task.wait()  -- aguarda 1 frame para o layout ser calculado
+                    task.wait(0.05)
                     PosHandle()
                 end)
 
-                track:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+                win._allConns:Add(track:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
                     if track.AbsoluteSize.X > 0 then PosHandle() end
-                end)
+                end))
 
                 valLbl.MouseButton1Click:Connect(function()
                     valLbl.Visible = false; editBox.Visible = true
@@ -1530,25 +1626,30 @@ function Library:new_tab(name, icon)
                     BackgroundTransparency = 1, ZIndex = 12,
                 }, row)
 
-                trackBtn.InputBegan:Connect(function(inp)
-                    if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+                local function ProcessInput(inp)
+                    local tw2 = math.max(track.AbsoluteSize.X, 1)
+                    local inputX = inp.Position.X
+                    local pct = math.clamp((inputX - track.AbsolutePosition.X) / tw2, 0, 1)
+                    SetSlider(mn + pct * (mx - mn))
+                end
+
+                win._allConns:Add(trackBtn.InputBegan:Connect(function(inp)
+                    if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
                         sDragging = true; ftip.Visible = true
                         Tw(handle, {Size = UDim2.new(0, 16, 0, 16)}, .12, Enum.EasingStyle.Back)
                         Tw(fillGlow, {Transparency = .3}, .15)
-                        local tw2 = math.max(track.AbsoluteSize.X, 1)
-                        local pct = math.clamp((inp.Position.X - track.AbsolutePosition.X) / tw2, 0, 1)
-                        SetSlider(mn + pct * (mx - mn))
-                    end
-                end)
-                win._allConns:Add(UIS.InputChanged:Connect(function(inp)
-                    if sDragging and inp.UserInputType == Enum.UserInputType.MouseMovement then
-                        local tw2 = math.max(track.AbsoluteSize.X, 1)
-                        local pct = math.clamp((inp.Position.X - track.AbsolutePosition.X) / tw2, 0, 1)
-                        SetSlider(mn + pct * (mx - mn))
+                        ProcessInput(inp)
                     end
                 end))
+
+                win._allConns:Add(UIS.InputChanged:Connect(function(inp)
+                    if sDragging and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
+                        ProcessInput(inp)
+                    end
+                end))
+
                 win._allConns:Add(UIS.InputEnded:Connect(function(inp)
-                    if inp.UserInputType == Enum.UserInputType.MouseButton1 and sDragging then
+                    if sDragging and (inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch) then
                         sDragging = false; ftip.Visible = false
                         Tw(handle, {Size = UDim2.new(0, 12, 0, 12)}, .15, Enum.EasingStyle.Back)
                         Tw(fillGlow, {Transparency = 1}, .2)
@@ -1562,7 +1663,6 @@ function Library:new_tab(name, icon)
                     SetSlider(math.clamp(Library.Flags[flag].Slider, mn, mx))
                 end
 
-            -- ═══ DROPDOWN (★ dirty state, search >7) ═══
             elseif eType == "Dropdown" then
                 local opts = options.options or {"Option"}
                 local defOpt = options.default or opts[1]
