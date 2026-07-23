@@ -732,16 +732,25 @@ function Library.new(title, toggleKey)
         local expanded = win.IslandHovered
         for _, t in ipairs(win.Tabs) do
             if t.Active then
+                t.DockBtn.Visible = true
                 Tw(t.DockBtn, {Size = UDim2.new(0, expanded and 44 or 40, 0, expanded and 36 or 36)}, .4, Enum.EasingStyle.Exponential)
                 if t.IconLabel then Tw(t.IconLabel, {TextTransparency = 0}, .2) end
                 if t.IconImage then Tw(t.IconImage, {ImageTransparency = 0}, .2) end
                 Tw(t.DockBtn, {BackgroundColor3 = T.Accent, BackgroundTransparency = 0.8}, .3)
                 Tw(t.DockDot, {Size = UDim2.new(0, expanded and 16 or 4, 0, 3)}, .3)
             else
+                if expanded then t.DockBtn.Visible = true end
                 Tw(t.DockBtn, {Size = UDim2.new(0, expanded and 36 or 0, 0, 36), BackgroundColor3 = T.Elevated, BackgroundTransparency = 1}, .4, Enum.EasingStyle.Exponential)
                 if t.IconLabel then Tw(t.IconLabel, {TextTransparency = expanded and 0.4 or 1}, .3) end
                 if t.IconImage then Tw(t.IconImage, {ImageTransparency = expanded and 0.4 or 1}, .3) end
                 Tw(t.DockDot, {Size = UDim2.new(0, 0, 0, 3)}, .3)
+                if not expanded then
+                    task.delay(.4, function()
+                        if t.DockBtn and t.DockBtn.Parent and not win.IslandHovered and not t.Active then
+                            t.DockBtn.Visible = false
+                        end
+                    end)
+                end
             end
         end
         local targetWidth = math.max(40, islandLayout.AbsoluteContentSize.X + 16)
@@ -996,6 +1005,7 @@ function Library:new_tab(name, icon)
         BackgroundTransparency = 1,
         BorderSizePixel = 0, AutoButtonColor = false, ZIndex = 32,
         ClipsDescendants = true,
+        Visible = false, -- avoids UIListLayout reserving a padding gap for a zero-width but "visible" pill
     }, win.IslandList)
     Cn(12, dockBtn)
     Reg(dockBtn, "BackgroundColor3", "Hover")
@@ -1187,40 +1197,78 @@ function Library:new_tab(name, icon)
 
         -- Collapse
         local collapseArrow = CreateUniversalIcon(hd, "Arrow", {
-            Size = UDim2.new(0, 11, 0, 11),
-            Position = UDim2.new(1, -20, .5, -6),
+            Size = UDim2.new(0, 14, 0, 14),
+            Position = UDim2.new(1, -22, .5, -7),
             AnchorPoint = Vector2.new(0, 0),
-            Color = T.TextMut, ThemeKey = "TextMut", ZIndex = 9,
+            Color = T.TextSub, ThemeKey = "TextSub", ZIndex = 9,
             Rotation = 90,
         })
 
-        -- Elements container
+        -- Elements container (wrapped so collapse/expand can animate height smoothly)
+        local ecWrap = I("Frame", {
+            Name = "ElWrap", Size = UDim2.new(1, 0, 0, 0),
+            AutomaticSize = Enum.AutomaticSize.Y,
+            BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 7, LayoutOrder = 2,
+            ClipsDescendants = true,
+        }, card)
+
         local ec = I("Frame", {
             Name = "El", Size = UDim2.new(1, 0, 0, 0),
             AutomaticSize = Enum.AutomaticSize.Y,
-            BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 7, LayoutOrder = 2,
-        }, card)
+            BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 7,
+        }, ecWrap)
         Ls(ec, 1); Pd(5, 7, 7, 7, ec)
         section.Container = ec
 
         local collapsed = sectionOptions.collapsed or false
-        if collapsed then ec.Visible = false; collapseArrow.Rotation = -90 end
+
+        local function ApplyCollapse(state, animate)
+            collapsed = state
+            if collapsed then
+                local curH = ecWrap.AbsoluteSize.Y
+                ecWrap.AutomaticSize = Enum.AutomaticSize.None
+                ecWrap.Size = UDim2.new(1, 0, 0, curH)
+                if animate then
+                    Tw(ecWrap, {Size = UDim2.new(1, 0, 0, 0)}, .28, Enum.EasingStyle.Quint)
+                    Tw(sqFrame, {BackgroundTransparency = 1}, .22)
+                else
+                    ecWrap.Size = UDim2.new(1, 0, 0, 0)
+                    sqFrame.BackgroundTransparency = 1
+                end
+            else
+                local targetH = ec.AbsoluteSize.Y
+                ecWrap.AutomaticSize = Enum.AutomaticSize.None
+                ecWrap.Size = UDim2.new(1, 0, 0, 0)
+                Tw(sqFrame, {BackgroundTransparency = 0}, animate and .28 or 0)
+                if animate then
+                    local tw = TwWait(ecWrap, {Size = UDim2.new(1, 0, 0, targetH)}, .3, Enum.EasingStyle.Quint)
+                    task.spawn(function()
+                        if tw then tw.Completed:Wait() end
+                        if not collapsed and ecWrap and ecWrap.Parent then
+                            ecWrap.AutomaticSize = Enum.AutomaticSize.Y
+                        end
+                    end)
+                else
+                    ecWrap.Size = UDim2.new(1, 0, 0, targetH)
+                    ecWrap.AutomaticSize = Enum.AutomaticSize.Y
+                end
+            end
+            Tw(collapseArrow, {Rotation = collapsed and 0 or 90}, .2, Enum.EasingStyle.Back)
+            Tw(pill, {BackgroundColor3 = collapsed and T.TextMut or T.Accent}, .2)
+        end
+
+        if collapsed then ApplyCollapse(true, false) end
 
         local collapseBtn = I("TextButton", {
             Text = "", Size = UDim2.new(1, 0, 1, 0),
             BackgroundTransparency = 1, ZIndex = 9,
         }, hd)
         collapseBtn.MouseButton1Click:Connect(function()
-            collapsed = not collapsed
-            ec.Visible = not collapsed
-            Tw(collapseArrow, {Rotation = collapsed and 0 or 90}, .2, Enum.EasingStyle.Back)
-            Tw(pill, {BackgroundColor3 = collapsed and T.TextMut or T.Accent}, .2)
+            ApplyCollapse(not collapsed, true)
         end)
 
         function section:set_collapsed(state)
-            collapsed = state; ec.Visible = not state
-            collapseArrow.Rotation = state and 0 or 90
-            pill.BackgroundColor3 = state and T.TextMut or T.Accent
+            ApplyCollapse(state, true)
         end
 
         -- ═══ SUB-FOLDER ═══
@@ -1238,10 +1286,10 @@ function Library:new_tab(name, icon)
             Cn(5, fBtn); Reg(fBtn, "BackgroundColor3", "Elevated")
 
             local fArrow = CreateUniversalIcon(fBtn, "Arrow", {
-                Size = UDim2.new(0, 9, 0, 9),
-                Position = UDim2.new(0, 6, .5, -5),
+                Size = UDim2.new(0, 12, 0, 12),
+                Position = UDim2.new(0, 7, .5, -6),
                 AnchorPoint = Vector2.new(0, 0),
-                Color = T.TextMut, ThemeKey = "TextMut", ZIndex = 9,
+                Color = T.TextSub, ThemeKey = "TextSub", ZIndex = 9,
             })
 
             I("TextLabel", {
@@ -1251,15 +1299,39 @@ function Library:new_tab(name, icon)
                 TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 9,
             }, fBtn)
 
+            local fWrap = I("Frame", {
+                Size = UDim2.new(1, 0, 0, 0), Position = UDim2.new(0, 0, 0, 28),
+                AutomaticSize = Enum.AutomaticSize.Y,
+                BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 7,
+                ClipsDescendants = true,
+            }, fRow)
+
             local fContent = I("Frame", {
                 Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
-                BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 7, Visible = false,
-            }, fRow)
+                BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 7,
+            }, fWrap)
             Ls(fContent, 1); Pd(2, 4, 8, 0, fContent)
 
             local fOpen = false
             fBtn.MouseButton1Click:Connect(function()
-                fOpen = not fOpen; fContent.Visible = fOpen
+                fOpen = not fOpen
+                if fOpen then
+                    local targetH = fContent.AbsoluteSize.Y
+                    fWrap.AutomaticSize = Enum.AutomaticSize.None
+                    fWrap.Size = UDim2.new(1, 0, 0, 0)
+                    local tw = TwWait(fWrap, {Size = UDim2.new(1, 0, 0, targetH)}, .28, Enum.EasingStyle.Quint)
+                    task.spawn(function()
+                        if tw then tw.Completed:Wait() end
+                        if fOpen and fWrap and fWrap.Parent then
+                            fWrap.AutomaticSize = Enum.AutomaticSize.Y
+                        end
+                    end)
+                else
+                    local curH = fWrap.AbsoluteSize.Y
+                    fWrap.AutomaticSize = Enum.AutomaticSize.None
+                    fWrap.Size = UDim2.new(1, 0, 0, curH)
+                    Tw(fWrap, {Size = UDim2.new(1, 0, 0, 0)}, .24, Enum.EasingStyle.Quint)
+                end
                 Tw(fArrow, {Rotation = fOpen and 90 or 0}, .2, Enum.EasingStyle.Back)
             end)
             fBtn.MouseEnter:Connect(function() Tw(fBtn, {BackgroundTransparency = 0, BackgroundColor3 = T.Hover}, .1) end)
@@ -1387,12 +1459,12 @@ function Library:new_tab(name, icon)
 
                 local gear = I("ImageButton", {
                     Image = Library.Icons.Gear, ScaleType = Enum.ScaleType.Fit,
-                    Size = UDim2.new(0, 14, 0, 14),
-                    Position = UDim2.new(1, -64, 0, descText and 8 or 11),
-                    BackgroundTransparency = 1, ImageColor3 = T.TextMut,
+                    Size = UDim2.new(0, 17, 0, 17),
+                    Position = UDim2.new(1, -65, 0, descText and 6 or 9),
+                    BackgroundTransparency = 1, ImageColor3 = T.TextSub,
                     ZIndex = 13, Visible = false,
                 }, row)
-                Reg(gear, "ImageColor3", "TextMut")
+                Reg(gear, "ImageColor3", "TextSub")
 
                 local isLocked = options.locked == true
                 local toggled = defVal
@@ -1433,10 +1505,10 @@ function Library:new_tab(name, icon)
                 
                 if isLocked then
                     CreateUniversalIcon(row, "Lock", {
-                        Size = UDim2.new(0, 13, 0, 13),
-                        Position = UDim2.new(1, -63, 0, descText and 9 or 12),
+                        Size = UDim2.new(0, 16, 0, 16),
+                        Position = UDim2.new(1, -64, 0, descText and 7 or 10),
                         AnchorPoint = Vector2.new(0, 0),
-                        Color = T.TextMut, ThemeKey = "TextMut", ZIndex = 13,
+                        Color = T.TextSub, ThemeKey = "TextSub", ZIndex = 13,
                     })
                     sw.BackgroundTransparency = 0.5
                     kn.BackgroundTransparency = 0.5
@@ -1474,6 +1546,15 @@ function Library:new_tab(name, icon)
                 local row = Row(38, true)
                 local dirtyDot = CreateDirtyDot(row, descText and 7 or 11)
                 elem._dirtyDot = dirtyDot
+
+                local sliderLbl = I("TextLabel", {
+                    Text = eName, Size = UDim2.new(1, -70, 0, 16),
+                    Position = UDim2.new(0, 8, 0, 2),
+                    BackgroundTransparency = 1, TextColor3 = T.Text, TextSize = 11,
+                    Font = Enum.Font.Gotham, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 9,
+                }, row)
+                Reg(sliderLbl, "TextColor3", "Text")
+                if descText then AddDesc(row, 16) end
 
                 local trackY = descText and 38 or 26
 
@@ -1666,8 +1747,8 @@ function Library:new_tab(name, icon)
                 Reg(sel, "TextColor3", "Text")
 
                 local ch = CreateUniversalIcon(df2, "Arrow", {
-                    Size = UDim2.new(0, 10, 0, 10),
-                    Position = UDim2.new(1, -18, .5, 0),
+                    Size = UDim2.new(0, 13, 0, 13),
+                    Position = UDim2.new(1, -19, .5, 0),
                     AnchorPoint = Vector2.new(.5, .5),
                     Color = T.TextSub, ThemeKey = "TextSub", ZIndex = 10,
                     Rotation = 90,
@@ -1750,8 +1831,8 @@ function Library:new_tab(name, icon)
                 Reg(msel, "TextColor3", "Text")
 
                 local mch = CreateUniversalIcon(mdf, "Arrow", {
-                    Size = UDim2.new(0, 10, 0, 10),
-                    Position = UDim2.new(1, -18, .5, 0),
+                    Size = UDim2.new(0, 13, 0, 13),
+                    Position = UDim2.new(1, -19, .5, 0),
                     AnchorPoint = Vector2.new(.5, .5),
                     Color = T.TextSub, ThemeKey = "TextSub", ZIndex = 10,
                     Rotation = 90,
@@ -2394,7 +2475,7 @@ function Library:_openColorPicker(elem, anchor, currentColor, onColorChange)
     local SQ_W, SQ_H, HUE_W = 170, 120, 20
 
     local pop = I("Frame", {
-        Size = UDim2.new(0, 240, 0, 285),
+        Size = UDim2.new(0, 10, 0, 10),
         BackgroundColor3 = T.Elevated, BackgroundTransparency = 1,
         BorderSizePixel = 0, ZIndex = 600,
     }, self.Overlay)
@@ -2406,11 +2487,21 @@ function Library:_openColorPicker(elem, anchor, currentColor, onColorChange)
         if not anchor or not anchor.Parent then return end
         local ap, as = anchor.AbsolutePosition, anchor.AbsoluteSize
         local ovPos = self.Overlay and self.Overlay.AbsolutePosition or Vector2.new(0,0)
-        local popX = ap.X - ovPos.X - 240 - 10
-        if popX < 10 then popX = ap.X - ovPos.X + as.X + 10 end
         local scrY = self.Gui and self.Gui:FindFirstChild("Main") and self.Gui.Main.AbsoluteSize.Y or 500
-        pop.Position = UDim2.new(0, popX, 0, math.clamp(ap.Y - ovPos.Y - (285/2) + (as.Y/2), 10, scrY - 290))
-        Tw(pop, {BackgroundTransparency = 0}, .22, Enum.EasingStyle.Back)
+
+        -- Prefer opening to the left of the swatch; fall back to the right if there's no room.
+        local growLeft = true
+        local edgeX = ap.X - ovPos.X - 10
+        if edgeX - 240 < 10 then
+            growLeft = false
+            edgeX = ap.X - ovPos.X + as.X + 10
+        end
+        local topY = math.clamp(ap.Y - ovPos.Y - (285 / 2) + (as.Y / 2), 10, scrY - 290)
+        local centerY = topY + 285 / 2
+
+        pop.AnchorPoint = Vector2.new(growLeft and 1 or 0, 0.5)
+        pop.Position = UDim2.new(0, edgeX, 0, centerY)
+        Tw(pop, {Size = UDim2.new(0, 240, 0, 285), BackgroundTransparency = 0}, .3, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
     end)
 
     local popTitle = I("TextLabel", {
