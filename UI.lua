@@ -1534,6 +1534,7 @@ function Library:new_tab(name, icon)
                 local df = options.default or mn
                 local dc = options.decimals or 0
                 local suffix = options.suffix or ""
+                local step = options.step -- ★ NEW: incrementos fixos (ex: step = 5)
                 if mx <= mn then mx = mn + 1 end
                 df = math.clamp(df, mn, mx)
                 Library.Flags[flag] = {Slider = df}
@@ -1636,6 +1637,11 @@ function Library:new_tab(name, icon)
 
                 local function SetSlider(v, silent)
                     local range = mx - mn; if range <= 0 then range = 1 end
+                    -- ★ BUG FIX (step): aplica o incremento fixo, se configurado, ANTES do
+                    -- arredondamento por decimais, para respeitar o "degrau" solicitado.
+                    if step and step > 0 then
+                        v = mn + math.floor((v - mn) / step + .5) * step
+                    end
                     local factor = 10 ^ dc
                     local r = math.clamp(math.floor(v * factor + .5) / factor, mn, mx)
                     Library.Flags[flag].Slider = r
@@ -1644,8 +1650,17 @@ function Library:new_tab(name, icon)
                     PosHandle()
                     UpdateDirty(dirtyDot, r, elem._default, "Slider")
                     if not silent then
-                        pcall(callback, r) -- Send value directly for maximum compatibility
-                        pcall(callback, {Slider = r}) -- Fallback table format
+                        -- ★ BUG FIX (crítico): o callback era disparado DUAS VEZES por
+                        -- atualização (uma com o número cru, outra com {Slider=r}). Isso
+                        -- quebrava qualquer script cujo callback não fosse idempotente
+                        -- (ex: conectar/desconectar loops, alternar flags, tocar tweens),
+                        -- pois a segunda chamada desfazia/duplicava o efeito da primeira.
+                        -- Agora é UMA única chamada, com tabela {Slider = r} — o mesmo
+                        -- padrão já usado por Toggle/Dropdown/ColorPicker/MultiDropdown,
+                        -- então o comportamento fica consistente em toda a lib.
+                        -- Se algum script antigo espera receber o número cru direto,
+                        -- basta ajustar para `function(t) local v = t.Slider ... end`.
+                        pcall(callback, {Slider = r})
                     end
                     CheckDeps(flag)
                 end
@@ -2271,12 +2286,30 @@ function Library:_openDropdown(opts, anchor, setFn, onClose)
     Reg(dd, "BackgroundColor3", "Elevated")
     self._dropdown = dd
 
+    -- ★ BUG FIX: a posição era setada uma única vez com `ap.X`/`ap.Y` puros, sem
+    -- descontar o AbsolutePosition do Overlay (o `dd` é filho do Overlay, então sua
+    -- Position é relativa a ele, não à tela). Além disso, nunca era recalculada, então
+    -- se a página tivesse scroll ou a janela fosse arrastada o dropdown "descolava" do
+    -- elemento real. Agora recalcula via Heartbeat enquanto o dropdown estiver aberto,
+    -- e clampa dentro da tela (usando o tamanho real do ScreenGui, não da janela).
+    local function PositionDD(instant)
+        if not anchor or not anchor.Parent or not dd or not dd.Parent then return end
+        local ovPos = self.Overlay.AbsolutePosition
+        local ap, as = anchor.AbsolutePosition, anchor.AbsoluteSize
+        local scrY = self.Gui and self.Gui.AbsoluteSize.Y or (workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize.Y) or 720
+        local targetX = ap.X - ovPos.X
+        local targetY = math.clamp(ap.Y - ovPos.Y + as.Y + 3, 0, scrY - totalH - 6)
+        dd.Position = UDim2.new(0, targetX, 0, targetY)
+    end
+
     task.defer(function()
         if not anchor or not anchor.Parent then return end
-        local ap, as = anchor.AbsolutePosition, anchor.AbsoluteSize
-        dd.Position = UDim2.new(0, ap.X, 0, ap.Y + as.Y + 3)
+        PositionDD(true)
+        local as = anchor.AbsoluteSize
         Tw(dd, {Size = UDim2.new(0, as.X, 0, totalH)}, .25, Enum.EasingStyle.Back)
     end)
+
+    conns:Add(RS.Heartbeat:Connect(function() PositionDD(true) end))
 
     local innerFrame = I("Frame", {
         Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1,
@@ -2384,12 +2417,26 @@ function Library:_openMultiDropdown(opts, selected, anchor, onUpdate, onClose)
     Reg(dd, "BackgroundColor3", "Elevated")
     self._dropdown = dd
 
+    -- ★ BUG FIX: mesmo problema do Dropdown simples — falta descontar a posição do
+    -- Overlay e nenhum recálculo contínuo. Ver comentários em Library:_openDropdown.
+    local function PositionDD()
+        if not anchor or not anchor.Parent or not dd or not dd.Parent then return end
+        local ovPos = self.Overlay.AbsolutePosition
+        local ap, as = anchor.AbsolutePosition, anchor.AbsoluteSize
+        local scrY = self.Gui and self.Gui.AbsoluteSize.Y or (workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize.Y) or 720
+        local targetX = ap.X - ovPos.X
+        local targetY = math.clamp(ap.Y - ovPos.Y + as.Y + 3, 0, scrY - totalH - 6)
+        dd.Position = UDim2.new(0, targetX, 0, targetY)
+    end
+
     task.defer(function()
         if not anchor or not anchor.Parent then return end
-        local ap, as = anchor.AbsolutePosition, anchor.AbsoluteSize
-        dd.Position = UDim2.new(0, ap.X, 0, ap.Y + as.Y + 3)
+        PositionDD()
+        local as = anchor.AbsoluteSize
         Tw(dd, {Size = UDim2.new(0, as.X, 0, totalH)}, .25, Enum.EasingStyle.Back)
     end)
+
+    conns:Add(RS.Heartbeat:Connect(PositionDD))
 
     local scr = I("ScrollingFrame", {
         Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1,
@@ -2483,11 +2530,18 @@ function Library:_openColorPicker(elem, anchor, currentColor, onColorChange)
     Reg(pop, "BackgroundColor3", "Elevated")
     self._popup = pop
 
-    task.defer(function()
-        if not anchor or not anchor.Parent then return end
+    -- ★ BUG FIX (crítico): `scrY` usava `self.Gui.Main.AbsoluteSize.Y` — a altura da
+    -- JANELA da UI (~490px) em vez da altura real da TELA. Isso fazia o `math.clamp`
+    -- limitar o Y do picker a no máximo ~200px sempre, não importa onde o elemento
+    -- estivesse de verdade — por isso ele "seguia" corretamente no X (que usa ovPos
+    -- sem clamp errado) mas travava no Y perto do topo. Agora usa o tamanho real do
+    -- ScreenGui (viewport). Também passou a recalcular via Heartbeat, então o picker
+    -- acompanha o swatch mesmo se a página rolar ou a janela for arrastada.
+    local function PositionCP()
+        if not anchor or not anchor.Parent or not pop or not pop.Parent then return end
         local ap, as = anchor.AbsolutePosition, anchor.AbsoluteSize
-        local ovPos = self.Overlay and self.Overlay.AbsolutePosition or Vector2.new(0,0)
-        local scrY = self.Gui and self.Gui:FindFirstChild("Main") and self.Gui.Main.AbsoluteSize.Y or 500
+        local ovPos = self.Overlay and self.Overlay.AbsolutePosition or Vector2.new(0, 0)
+        local scrY = self.Gui and self.Gui.AbsoluteSize.Y or (workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize.Y) or 720
 
         -- Prefer opening to the left of the swatch; fall back to the right if there's no room.
         local growLeft = true
@@ -2496,13 +2550,20 @@ function Library:_openColorPicker(elem, anchor, currentColor, onColorChange)
             growLeft = false
             edgeX = ap.X - ovPos.X + as.X + 10
         end
-        local topY = math.clamp(ap.Y - ovPos.Y - (285 / 2) + (as.Y / 2), 10, scrY - 290)
+        local topY = math.clamp(ap.Y - ovPos.Y - (285 / 2) + (as.Y / 2), 10, scrY - 295)
         local centerY = topY + 285 / 2
 
         pop.AnchorPoint = Vector2.new(growLeft and 1 or 0, 0.5)
         pop.Position = UDim2.new(0, edgeX, 0, centerY)
+    end
+
+    task.defer(function()
+        if not anchor or not anchor.Parent then return end
+        PositionCP()
         Tw(pop, {Size = UDim2.new(0, 240, 0, 285), BackgroundTransparency = 0}, .3, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
     end)
+
+    conns:Add(RS.Heartbeat:Connect(PositionCP))
 
     local popTitle = I("TextLabel", {
         Text = "COLOR  ·  " .. elem.Name,
@@ -2817,6 +2878,82 @@ function Library:SetFlag(flag, key, value)
         elem._setValue(value, true)
     end
     CheckDeps(flag)
+end
+
+-- ═══════════════════════════════════════════════════
+--  ★ NOVO: SAVE / LOAD DE CONFIG
+--  Salva/recarrega o estado de todos os elementos (Library.Flags) em um arquivo
+--  JSON no executor. Cores (Color3) são serializadas como hex para ficarem
+--  legíveis e portáteis entre sessões.
+-- ═══════════════════════════════════════════════════
+local function SerializeFlags()
+    local out = {}
+    for flag, data in pairs(Library.Flags) do
+        local copy = {}
+        for k, v in pairs(data) do
+            if typeof(v) == "Color3" then
+                copy[k] = {__color3 = Color3ToHex(v)}
+            elseif typeof(v) == "EnumItem" then
+                copy[k] = {__enum = tostring(v)}
+            elseif type(v) == "table" then
+                -- MultiDropdown "Selected" (table de bool) já é JSON-safe
+                copy[k] = v
+            else
+                copy[k] = v
+            end
+        end
+        out[flag] = copy
+    end
+    return out
+end
+
+local function DeserializeValue(v)
+    if type(v) == "table" and v.__color3 then
+        return HexToColor3(v.__color3)
+    end
+    return v
+end
+
+function Library:SaveConfig(name)
+    local writefile = writefile or (getgenv and getgenv().writefile)
+    if not writefile then
+        warn("[NexUI] writefile não disponível neste executor.")
+        return false
+    end
+    local ok, encoded = pcall(function() return Http:JSONEncode(SerializeFlags()) end)
+    if not ok then warn("[NexUI] Falha ao serializar config:", encoded); return false end
+    local path = "NexUI_" .. tostring(name or "default") .. ".json"
+    local wok = pcall(writefile, path, encoded)
+    if wok and self.Notify then self:Notify("Config salva", path, 3, "Success") end
+    return wok
+end
+
+function Library:LoadConfig(name)
+    local readfile = readfile or (getgenv and getgenv().readfile)
+    local isfile = isfile or (getgenv and getgenv().isfile)
+    if not readfile then
+        warn("[NexUI] readfile não disponível neste executor.")
+        return false
+    end
+    local path = "NexUI_" .. tostring(name or "default") .. ".json"
+    if isfile and not isfile(path) then return false end
+
+    local ok, raw = pcall(readfile, path)
+    if not ok then return false end
+    local dok, data = pcall(function() return Http:JSONDecode(raw) end)
+    if not dok or type(data) ~= "table" then return false end
+
+    for flag, fields in pairs(data) do
+        local elem = Library.Elements[flag]
+        if elem and elem._setValue then
+            for k, v in pairs(fields) do
+                local val = DeserializeValue(v)
+                pcall(function() self:SetFlag(flag, k, val) end)
+            end
+        end
+    end
+    if self.Notify then self:Notify("Config carregada", path, 3, "Info") end
+    return true
 end
 
 Library._notifHolder = nil
